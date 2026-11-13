@@ -1,6 +1,6 @@
 import { Command } from 'nest-commander';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
-import {\n  FieldMetadataType,\n  RelationType,\n  ViewCalendarLayout,\n  ViewType,\n  ViewVisibility,\n} from 'twenty-shared/types';
+import {\n  FieldMetadataType,\n  RelationType,\n  ViewCalendarLayout,\n  ViewKey,\n  ViewType,\n  ViewVisibility,\n} from 'twenty-shared/types';
 import { doNotTranslate } from 'twenty-shared/i18n';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -579,7 +579,15 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       return true;
     });
 
-    if (viewsToCreate.length === 0) {
+    const existingPipelineView =
+      flatViewMaps.byUniversalIdentifier[
+        CRM_LEAD_VIEW_IDENTIFIERS.pipeline.universalIdentifier
+      ];
+    const shouldPromotePipelineToIndex =
+      !isDefined(existingPipelineView) ||
+      existingPipelineView.key !== ViewKey.INDEX;
+
+    if (viewsToCreate.length === 0 && !shouldPromotePipelineToIndex) {
       this.logger.log(
         doNotTranslate(
           `CRM Lead pipeline and follow-up calendar already exist in workspace ${workspaceId}; skipping view creation`,
@@ -592,7 +600,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     if (options.dryRun) {
       this.logger.log(
         doNotTranslate(
-          `[DRY RUN] Would create CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ')}`,
+          `[DRY RUN] Would create CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ') || 'none'}; default the pipeline board`,
         ),
       );
 
@@ -600,9 +608,47 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     }
 
     const flatViewsToCreate = [];
+    const flatViewsToUpdate = [];
     const flatViewGroupsToCreate = [];
     const flatViewFieldsToCreate = [];
     let flatViewMapsForCreation = flatViewMaps;
+
+    const currentIndexView = Object.values(
+      flatViewMaps.byUniversalIdentifier,
+    )
+      .filter(isDefined)
+      .find(
+        (view) =>
+          view.objectMetadataId === leadObjectMetadataId &&
+          view.key === ViewKey.INDEX,
+      );
+
+    if (
+      shouldPromotePipelineToIndex &&
+      isDefined(currentIndexView) &&
+      (!isDefined(existingPipelineView) ||
+        currentIndexView.id !== existingPipelineView.id)
+    ) {
+      flatViewsToUpdate.push({
+        ...currentIndexView,
+        key: null,
+        name: 'All Leads',
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (
+      shouldPromotePipelineToIndex &&
+      isDefined(existingPipelineView)
+    ) {
+      flatViewsToUpdate.push({
+        ...existingPipelineView,
+        key: ViewKey.INDEX,
+        name: 'Lead Pipeline',
+        position: 0,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     for (const definition of viewsToCreate) {
       const viewInput = {
@@ -671,7 +717,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           view: {
             flatEntityToCreate: flatViewsToCreate,
             flatEntityToDelete: [],
-            flatEntityToUpdate: [],
+            flatEntityToUpdate: flatViewsToUpdate,
           },
           viewGroup: {
             flatEntityToCreate: flatViewGroupsToCreate,
