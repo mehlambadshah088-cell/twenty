@@ -820,7 +820,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     options: ProvisionedWorkspaceCommandOptions;
   }): Promise<void> {
     const {
-      optimisticFlatNavigationMenuItemMaps,
+      flatNavigationMenuItemMaps,
       flatObjectMetadataMaps,
       flatViewMaps,
       flatPageLayoutMaps,
@@ -834,7 +834,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     ]);
 
     const optimisticFlatNavigationMenuItemMaps = structuredClone(
-      optimisticFlatNavigationMenuItemMaps,
+      flatNavigationMenuItemMaps,
     );
 
     const workspaceCustomFlatApplication =
@@ -959,7 +959,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           },
           workspaceId,
           flatApplication: workspaceCustomFlatApplication,
-          optimisticFlatNavigationMenuItemMaps,
+          flatNavigationMenuItemMaps: optimisticFlatNavigationMenuItemMaps,
           flatObjectMetadataMaps,
           flatViewMaps,
           flatPageLayoutMaps,
@@ -968,7 +968,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
 
       addFlatNavigationMenuItemToMapsAndUpdateIndex({
         flatNavigationMenuItem,
-        optimisticFlatNavigationMenuItemMaps,
+        flatNavigationMenuItemMaps: optimisticFlatNavigationMenuItemMaps,
       });
       navigationItemsToCreate.push(flatNavigationMenuItem);
     };
