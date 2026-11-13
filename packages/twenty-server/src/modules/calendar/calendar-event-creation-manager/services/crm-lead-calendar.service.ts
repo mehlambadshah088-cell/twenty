@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -50,6 +51,8 @@ type OwnerCalendarContext = {
 
 @Injectable()
 export class CrmLeadCalendarService {
+  private readonly logger = new Logger(CrmLeadCalendarService.name);
+
   constructor(
     @InjectRepository(ConnectedAccountEntity)
     private readonly connectedAccountRepository: Repository<ConnectedAccountEntity>,
@@ -293,17 +296,58 @@ export class CrmLeadCalendarService {
           composedResult.data,
           workspaceId,
         );
+      const followUpDateUpdated = await this.updateLeadNextFollowUpAt({
+        leadRecordId: input.leadRecordId,
+        startsAt: input.startsAt,
+      });
 
       return {
         success: true,
         message:
           'Meeting booked. The event was added to the owner calendar and invitations were sent to the employee' +
-          (leadEmail ? ' and lead.' : '.'),
+          (leadEmail ? ' and lead.' : '.') +
+          (followUpDateUpdated
+            ? ' The Lead next follow-up date was updated.'
+            : ' The meeting is booked, but your role could not update the Lead next follow-up date.'),
         calendarEventId: calendarEventId ?? undefined,
         conferenceLink: createdEvent.conferenceLinkUrl || undefined,
         busyIntervals: [],
       };
     });
+  }
+
+  private async updateLeadNextFollowUpAt({
+    leadRecordId,
+    startsAt,
+  }: {
+    leadRecordId: string;
+    startsAt: string;
+  }): Promise<boolean> {
+    try {
+      return await this.workspaceOrmManager.executeInWorkspaceContext(
+        async () => {
+          const leadRepository =
+            this.workspaceOrmManager.getRepository<ObjectRecord>('lead');
+
+          if (!leadRepository.isObjectOperationPermittedByRole('update')) {
+            return false;
+          }
+
+          await leadRepository.update(
+            { id: leadRecordId },
+            { nextFollowUpAt: startsAt },
+          );
+
+          return true;
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Unable to update the next follow-up date for Lead ${leadRecordId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
+      return false;
+    }
   }
 
   private async findLeadRecord(
