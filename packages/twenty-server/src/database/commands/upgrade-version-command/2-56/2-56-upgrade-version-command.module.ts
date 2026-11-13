@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ProvisionCrmLeadObjectCommand } from 'src/database/commands/upgrade-version-command/2-56/2-56-workspace-command-1794000000000-provision-crm-lead-object.command';
 import { ObjectMetadataModule } from 'src/engine/metadata-modules/object-metadata/object-metadata.module';
+import { FieldMetadataModule } from 'src/engine/metadata-modules/field-metadata/field-metadata.module';
 
 import { WorkspaceIteratorModule } from 'src/database/commands/command-runners/workspace-iterator.module';
 import { AddDirectMessagePairIdentityCommand } from 'src/database/commands/upgrade-version-command/2-56/2-56-workspace-command-1793639083811-add-direct-message-pair-identity.command';
@@ -25,6 +26,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
   imports: [
     ApplicationModule,
     ObjectMetadataModule,
+    FieldMetadataModule,
     ApplicationPackageModule,
     FeatureFlagModule,
     WorkspaceCacheModule,
