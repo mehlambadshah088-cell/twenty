@@ -13,6 +13,7 @@ import { IsNull, type DataSource, type Repository } from 'typeorm';
 
 import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
+import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
@@ -24,6 +25,7 @@ import {
   CrmLeadCalendarAvailabilityInput,
   CrmLeadCalendarAvailability,
   CrmLeadCalendarBusyInterval,
+  CrmLeadCalendarOwner,
 } from 'src/modules/calendar/calendar-event-creation-manager/dtos/crm-lead-calendar.input';
 import { GoogleOAuth2ClientProvider } from 'src/modules/connected-account/oauth2-client-manager/drivers/google/google-oauth2-client.provider';
 import { isValidTimeZone } from 'src/modules/calendar/calendar-event-creation-manager/utils/is-valid-time-zone.util';
@@ -60,6 +62,91 @@ export class CrmLeadCalendarService {
     private readonly calendarEventComposerService: CalendarEventComposerService,
     private readonly createCalendarEventService: CreateCalendarEventService,
   ) {}
+
+  async getAvailableOwners(
+    workspaceId: string,
+  ): Promise<CrmLeadCalendarOwner[]> {
+    const connectedAccounts = await this.connectedAccountRepository.find({
+      where: {
+        workspaceId,
+        provider: ConnectedAccountProvider.GOOGLE,
+        scope: 'USER',
+        archivedAt: IsNull(),
+      },
+      relations: { calendarChannels: true },
+      order: { updatedAt: 'DESC' },
+    });
+
+    const availableUserWorkspaceIds = new Set(
+      connectedAccounts
+        .filter(
+          (connectedAccount) =>
+            connectedAccount.scopes?.some((scope) =>
+              GOOGLE_CALENDAR_FREEBUSY_SCOPES.includes(scope),
+            ) &&
+            connectedAccount.calendarChannels?.some(
+              (calendarChannel) => calendarChannel.isSyncEnabled,
+            ),
+        )
+        .map((connectedAccount) => connectedAccount.userWorkspaceId),
+    );
+
+    if (availableUserWorkspaceIds.size === 0) {
+      return [];
+    }
+
+    const userWorkspaces = await Promise.all(
+      [...availableUserWorkspaceIds].map((userWorkspaceId) =>
+        this.userWorkspaceService.findById(userWorkspaceId),
+      ),
+    );
+    const availableUserIds = new Set(
+      userWorkspaces
+        .filter(
+          (userWorkspace) =>
+            isDefined(userWorkspace) &&
+            userWorkspace.workspaceId === workspaceId,
+        )
+        .map((userWorkspace) => userWorkspace.userId),
+    );
+
+    if (availableUserIds.size === 0) {
+      return [];
+    }
+
+    const workspaceMembers =
+      await this.workspaceOrmManager.executeInWorkspaceContext(
+        async () => {
+          const workspaceMemberRepository =
+            this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(
+              'workspaceMember',
+            );
+
+          return workspaceMemberRepository.find();
+        },
+        buildSystemAuthContext(workspaceId),
+      );
+
+    return workspaceMembers
+      .filter(
+        (workspaceMember) =>
+          availableUserIds.has(workspaceMember.userId) &&
+          isDefined(workspaceMember.userEmail),
+      )
+      .map((workspaceMember) => ({
+        id: workspaceMember.id,
+        name:
+          [
+            workspaceMember.name?.firstName,
+            workspaceMember.name?.lastName,
+          ]
+            .filter(Boolean)
+            .join(' ') || workspaceMember.userEmail || 'Workspace member',
+        email: workspaceMember.userEmail as string,
+        timeZone: workspaceMember.timeZone ?? null,
+      }))
+      .sort((first, second) => first.name.localeCompare(second.name));
+  }
 
   async getAvailability(
     input: CrmLeadCalendarAvailabilityInput,
