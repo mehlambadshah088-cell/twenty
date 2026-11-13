@@ -34,6 +34,8 @@ import { isValidTimeZone } from 'src/modules/calendar/calendar-event-creation-ma
 import { resolveCalendarEventTimeZone } from 'src/modules/calendar/calendar-event-creation-manager/utils/resolve-calendar-event-time-zone.util';
 
 const GOOGLE_PRIMARY_CALENDAR_ID = 'primary';
+const GOOGLE_CALENDAR_EVENTS_SCOPE =
+  'https://www.googleapis.com/auth/calendar.events';
 const GOOGLE_CALENDAR_FREEBUSY_SCOPES = [
   'https://www.googleapis.com/auth/calendar.freebusy',
   'https://www.googleapis.com/auth/calendar.events.freebusy',
@@ -85,6 +87,9 @@ export class CrmLeadCalendarService {
       connectedAccounts
         .filter(
           (connectedAccount) =>
+            connectedAccount.scopes?.includes(
+              GOOGLE_CALENDAR_EVENTS_SCOPE,
+            ) &&
             connectedAccount.scopes?.some((scope) =>
               GOOGLE_CALENDAR_FREEBUSY_SCOPES.includes(scope),
             ) &&
