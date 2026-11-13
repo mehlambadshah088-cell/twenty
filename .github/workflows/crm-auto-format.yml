@@ -1,0 +1,57 @@
+name: CRM Auto Format
+
+on:
+  push:
+    branches:
+      - chatgpt-01-crm-customization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crm-auto-format-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format-crm-files:
+    name: Format CRM frontend file
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: chatgpt-01-crm-customization
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26.13.0"
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Setup Yarn
+        run: |
+          npm install --global corepack@latest
+          corepack enable
+          yarn --version
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Format CRM frontend file
+        run: npx oxfmt --write packages/twenty-front/src/modules/crm/components/ScheduleLeadMeetingButton.tsx
+
+      - name: Commit formatting changes
+        run: |
+          if git diff --quiet --; then
+            echo "No formatting changes needed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/twenty-front/src/modules/crm/components/ScheduleLeadMeetingButton.tsx
+          git commit -m "style(crm): format lead calendar component"
+          git push origin HEAD:chatgpt-01-crm-customization
