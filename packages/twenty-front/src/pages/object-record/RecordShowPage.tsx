@@ -3,8 +3,8 @@ import { AppPath, StandardObjectNameSingular } from 'twenty-shared/types';
 import { getAppPath, isDefined } from 'twenty-shared/utils';
 
 import { WorkspaceRouteUnavailable } from '@/ui/layout/page/components/WorkspaceRouteUnavailable';
-import { CreateLeadTaskButton } from '@/modules/crm/components/CreateLeadTaskButton';
-import { ScheduleLeadMeetingButton } from '@/modules/crm/components/ScheduleLeadMeetingButton';
+import { CreateLeadTaskButton } from '@/crm/components/CreateLeadTaskButton';
+import { ScheduleLeadMeetingButton } from '@/crm/components/ScheduleLeadMeetingButton';
 import { useHasPermissionFlag } from '@/settings/roles/hooks/useHasPermissionFlag';
 import { PermissionFlagType } from '~/generated-metadata/graphql';
 import { findCoreObjectShowPage } from '@/object-core/utils/findCoreObjectShowPage';
