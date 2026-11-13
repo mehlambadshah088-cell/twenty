@@ -4,9 +4,9 @@ import {
   FieldMetadataType,
   RelationType,
   ViewCalendarLayout,
-  ViewKey,
   ViewType,
   ViewVisibility,
+  NavigationMenuItemType,
 } from 'twenty-shared/types';
 import { doNotTranslate } from 'twenty-shared/i18n';
 import { isDefined } from 'twenty-shared/utils';
@@ -19,6 +19,8 @@ import { WorkspaceIteratorService } from 'src/database/commands/command-runners/
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { fromCreateViewFieldInputToFlatViewFieldToCreate } from 'src/engine/metadata-modules/flat-view-field/utils/from-create-view-field-input-to-flat-view-field-to-create.util';
+import { addFlatNavigationMenuItemToMapsAndUpdateIndex } from 'src/engine/metadata-modules/flat-navigation-menu-item/utils/add-flat-navigation-menu-item-to-maps-and-update-index.util';
+import { fromCreateNavigationMenuItemInputToFlatNavigationMenuItemToCreate } from 'src/engine/metadata-modules/flat-navigation-menu-item/utils/from-create-navigation-menu-item-input-to-flat-navigation-menu-item-to-create.util';
 import { fromCreateViewInputToFlatViewToCreate } from 'src/engine/metadata-modules/flat-view/utils/from-create-view-input-to-flat-view-to-create.util';
 import { ObjectMetadataService } from 'src/engine/metadata-modules/object-metadata/object-metadata.service';
 import { type CreateFieldInput } from 'src/engine/metadata-modules/field-metadata/dtos/create-field.input';
@@ -59,6 +61,13 @@ const CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = {
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ee',
     'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
   ],
+} as const;
+
+const CRM_NAVIGATION_MENU_ITEM_IDS = {
+  folder: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e1',
+  pipeline: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e2',
+  allLeads: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
+  followUps: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
 } as const;
 
 const CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS = {
@@ -663,20 +672,18 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       return true;
     });
 
-    const existingPipelineView =
-      flatViewMaps.byUniversalIdentifier[
-        CRM_LEAD_VIEW_IDENTIFIERS.pipeline.universalIdentifier
-      ];
-    const shouldPromotePipelineToIndex =
-      !isDefined(existingPipelineView) ||
-      existingPipelineView.key !== ViewKey.INDEX;
-
-    if (viewsToCreate.length === 0 && !shouldPromotePipelineToIndex) {
+    if (viewsToCreate.length === 0) {
       this.logger.log(
         doNotTranslate(
           `CRM Lead pipeline and follow-up calendar already exist in workspace ${workspaceId}; skipping view creation`,
         ),
       );
+
+      await this.ensureLeadNavigationItems({
+        workspaceId,
+        leadObjectMetadataId,
+        options,
+      });
 
       return;
     }
@@ -692,48 +699,9 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     }
 
     const flatViewsToCreate = [];
-    const flatViewsToUpdate = [];
     const flatViewGroupsToCreate = [];
     const flatViewFieldsToCreate = [];
     let flatViewMapsForCreation = flatViewMaps;
-
-    const currentIndexView = Object.values(
-      flatViewMaps.byUniversalIdentifier,
-    )
-      .filter(isDefined)
-      .find(
-        (view) =>
-          view.objectMetadataId === leadObjectMetadataId &&
-          view.key === ViewKey.INDEX,
-      );
-
-    if (
-      shouldPromotePipelineToIndex &&
-      isDefined(currentIndexView) &&
-      (!isDefined(existingPipelineView) ||
-        currentIndexView.id !== existingPipelineView.id)
-    ) {
-      flatViewsToUpdate.push({
-        ...currentIndexView,
-        key: null,
-        name: 'All Leads',
-        position: 1,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    if (
-      shouldPromotePipelineToIndex &&
-      isDefined(existingPipelineView)
-    ) {
-      flatViewsToUpdate.push({
-        ...existingPipelineView,
-        key: ViewKey.INDEX,
-        name: 'Lead Pipeline',
-        position: 0,
-        updatedAt: new Date().toISOString(),
-      });
-    }
 
     for (const definition of viewsToCreate) {
       const viewInput = {
@@ -744,9 +712,6 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
         type: definition.type,
         icon: definition.icon,
         position: definition.position,
-        ...(definition.type === ViewType.KANBAN
-          ? { key: ViewKey.INDEX }
-          : {}),
         visibility: ViewVisibility.WORKSPACE,
         ...(definition.type === ViewType.KANBAN
           ? {
@@ -805,7 +770,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           view: {
             flatEntityToCreate: flatViewsToCreate,
             flatEntityToDelete: [],
-            flatEntityToUpdate: flatViewsToUpdate,
+            flatEntityToUpdate: [],
           },
           viewGroup: {
             flatEntityToCreate: flatViewGroupsToCreate,
@@ -834,6 +799,268 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     this.logger.log(
       doNotTranslate(
         `Created CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ')}`,
+      ),
+    );
+
+    await this.ensureLeadNavigationItems({
+      workspaceId,
+      leadObjectMetadataId,
+      options,
+    });
+  }
+
+  private async ensureLeadNavigationItems({
+    workspaceId,
+    leadObjectMetadataId,
+    options,
+  }: {
+    workspaceId: string;
+    leadObjectMetadataId: string;
+    options: ProvisionedWorkspaceCommandOptions;
+  }): Promise<void> {
+    const {
+      flatNavigationMenuItemMaps,
+      flatObjectMetadataMaps,
+      flatViewMaps,
+      flatPageLayoutMaps,
+      flatAgentChatChannelMaps,
+    } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
+      'flatNavigationMenuItemMaps',
+      'flatObjectMetadataMaps',
+      'flatViewMaps',
+      'flatPageLayoutMaps',
+      'flatAgentChatChannelMaps',
+    ]);
+
+    const workspaceCustomFlatApplication =
+      (
+        await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow({
+          workspaceId,
+        })
+      ).workspaceCustomFlatApplication;
+
+    const pipelineView =
+      flatViewMaps.byUniversalIdentifier[
+        CRM_LEAD_VIEW_IDENTIFIERS.pipeline.universalIdentifier
+      ];
+    const followUpCalendarView =
+      flatViewMaps.byUniversalIdentifier[
+        CRM_LEAD_VIEW_IDENTIFIERS.followUpCalendar.universalIdentifier
+      ];
+    const allLeadsIndexView = Object.values(
+      flatViewMaps.byUniversalIdentifier,
+    )
+      .filter(isDefined)
+      .find(
+        (view) =>
+          view.objectMetadataId === leadObjectMetadataId &&
+          view.key === 'INDEX' &&
+          view.type === ViewType.TABLE,
+      );
+
+    if (
+      !isDefined(pipelineView) ||
+      !isDefined(followUpCalendarView) ||
+      !isDefined(allLeadsIndexView)
+    ) {
+      throw new Error(
+        `Cannot create CRM navigation for workspace ${workspaceId}: one or more Lead views are missing.`,
+      );
+    }
+
+    const folderId = CRM_NAVIGATION_MENU_ITEM_IDS.folder;
+    const existingFolder =
+      flatNavigationMenuItemMaps.byUniversalIdentifier[folderId];
+
+    if (
+      isDefined(existingFolder) &&
+      (existingFolder.type !== NavigationMenuItemType.FOLDER ||
+        existingFolder.name !== 'CRM')
+    ) {
+      throw new Error(
+        `CRM navigation folder identifier is already used by a different menu item in workspace ${workspaceId}.`,
+      );
+    }
+
+    const conflictingFolder = Object.values(
+      flatNavigationMenuItemMaps.byUniversalIdentifier,
+    )
+      .filter(isDefined)
+      .find(
+        (item) =>
+          item.type === NavigationMenuItemType.FOLDER &&
+          item.name === 'CRM' &&
+          item.id !== folderId,
+      );
+
+    if (isDefined(conflictingFolder)) {
+      throw new Error(
+        `Cannot create CRM navigation folder in workspace ${workspaceId}: a different folder named CRM already exists.`,
+      );
+    }
+
+    const navigationItemsToCreate = [];
+    const createNavigationItem = (input: {
+      id: string;
+      type: NavigationMenuItemType;
+      name: string;
+      icon: string;
+      position: number;
+      viewId?: string;
+      folderId?: string;
+    }) => {
+      const existing =
+        flatNavigationMenuItemMaps.byUniversalIdentifier[input.id];
+
+      if (isDefined(existing)) {
+        if (
+          existing.type !== input.type ||
+          existing.name !== input.name ||
+          existing.viewId !== (input.viewId ?? null) ||
+          existing.folderId !== (input.folderId ?? null)
+        ) {
+          throw new Error(
+            `CRM navigation item "${input.name}" has a conflicting existing identifier in workspace ${workspaceId}.`,
+          );
+        }
+
+        return;
+      }
+
+      const sameNameInFolder =
+        flatNavigationMenuItemMaps.byUserWorkspaceIdAndFolderId['null']?.[
+          input.folderId ?? 'null'
+        ]?.find(
+          (item) =>
+            item.name === input.name && item.type === input.type,
+        );
+
+      if (isDefined(sameNameInFolder)) {
+        throw new Error(
+          `Cannot create CRM navigation item "${input.name}" in workspace ${workspaceId}: an item with the same name already exists in the target folder.`,
+        );
+      }
+
+      const flatNavigationMenuItem =
+        fromCreateNavigationMenuItemInputToFlatNavigationMenuItemToCreate({
+          createNavigationMenuItemInput: {
+            id: input.id,
+            type: input.type,
+            name: input.name,
+            icon: input.icon,
+            position: input.position,
+            viewId: input.viewId,
+            folderId: input.folderId,
+          },
+          workspaceId,
+          flatApplication: workspaceCustomFlatApplication,
+          flatNavigationMenuItemMaps,
+          flatObjectMetadataMaps,
+          flatViewMaps,
+          flatPageLayoutMaps,
+          flatAgentChatChannelMaps,
+        });
+
+      addFlatNavigationMenuItemToMapsAndUpdateIndex({
+        flatNavigationMenuItem,
+        flatNavigationMenuItemMaps,
+      });
+      navigationItemsToCreate.push(flatNavigationMenuItem);
+    };
+
+    if (!isDefined(existingFolder)) {
+      const rootItems =
+        flatNavigationMenuItemMaps.byUserWorkspaceIdAndFolderId['null']?.[
+          'null'
+        ] ?? [];
+      const nextRootPosition =
+        rootItems.reduce(
+          (max, item) => Math.max(max, item.position),
+          -1,
+        ) + 1;
+
+      createNavigationItem({
+        id: folderId,
+        type: NavigationMenuItemType.FOLDER,
+        name: 'CRM',
+        icon: 'IconTarget',
+        position: nextRootPosition,
+      });
+    }
+
+    createNavigationItem({
+      id: CRM_NAVIGATION_MENU_ITEM_IDS.pipeline,
+      type: NavigationMenuItemType.VIEW,
+      name: 'Lead Pipeline',
+      icon: 'IconLayoutKanban',
+      position: 0,
+      viewId: pipelineView.id,
+      folderId,
+    });
+    createNavigationItem({
+      id: CRM_NAVIGATION_MENU_ITEM_IDS.allLeads,
+      type: NavigationMenuItemType.VIEW,
+      name: 'All Leads',
+      icon: 'IconTable',
+      position: 1,
+      viewId: allLeadsIndexView.id,
+      folderId,
+    });
+    createNavigationItem({
+      id: CRM_NAVIGATION_MENU_ITEM_IDS.followUps,
+      type: NavigationMenuItemType.VIEW,
+      name: 'Follow-ups',
+      icon: 'IconCalendarClock',
+      position: 2,
+      viewId: followUpCalendarView.id,
+      folderId,
+    });
+
+    if (navigationItemsToCreate.length === 0) {
+      this.logger.log(
+        doNotTranslate(
+          `CRM navigation links already exist in workspace ${workspaceId}; skipping`,
+        ),
+      );
+
+      return;
+    }
+
+    if (options.dryRun) {
+      this.logger.log(
+        doNotTranslate(
+          `[DRY RUN] Would create ${navigationItemsToCreate.length} CRM navigation item(s) in workspace ${workspaceId}.`,
+        ),
+      );
+
+      return;
+    }
+
+    const validateAndBuildResult =
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration({
+        allFlatEntityOperationByMetadataName: {
+          navigationMenuItem: {
+            flatEntityToCreate: navigationItemsToCreate,
+            flatEntityToDelete: [],
+            flatEntityToUpdate: [],
+          },
+        },
+        workspaceId,
+        isSystemBuild: false,
+        applicationUniversalIdentifier:
+          workspaceCustomFlatApplication.universalIdentifier,
+      });
+
+    if (validateAndBuildResult.status === 'fail') {
+      throw new WorkspaceMigrationBuilderException(
+        validateAndBuildResult,
+        'Failed to create CRM navigation menu items',
+      );
+    }
+
+    this.logger.log(
+      doNotTranslate(
+        `Created CRM navigation folder and views in workspace ${workspaceId}.`,
       ),
     );
   }
