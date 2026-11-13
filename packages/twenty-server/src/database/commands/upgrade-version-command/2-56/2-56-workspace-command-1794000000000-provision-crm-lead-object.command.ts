@@ -531,7 +531,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
         name: 'Lead Pipeline',
         type: ViewType.KANBAN,
         icon: 'IconLayoutKanban',
-        position: 1,
+        position: 0,
         mainGroupByFieldMetadataId: stageField.id,
         fields: [
           nameField.id,
@@ -647,6 +647,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
         ...currentIndexView,
         key: null,
         name: 'All Leads',
+        position: 1,
         updatedAt: new Date().toISOString(),
       });
     }
@@ -673,6 +674,9 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
         type: definition.type,
         icon: definition.icon,
         position: definition.position,
+        ...(definition.type === ViewType.KANBAN
+          ? { key: ViewKey.INDEX }
+          : {}),
         visibility: ViewVisibility.WORKSPACE,
         ...(definition.type === ViewType.KANBAN
           ? {
