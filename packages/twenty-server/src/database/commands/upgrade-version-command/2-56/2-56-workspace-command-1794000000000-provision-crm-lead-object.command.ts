@@ -4,6 +4,7 @@ import {
   FieldMetadataType,
   RelationType,
   ViewCalendarLayout,
+  ViewKey,
   ViewType,
   ViewVisibility,
   NavigationMenuItemType,
@@ -819,7 +820,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     options: ProvisionedWorkspaceCommandOptions;
   }): Promise<void> {
     const {
-      flatNavigationMenuItemMaps,
+      optimisticFlatNavigationMenuItemMaps,
       flatObjectMetadataMaps,
       flatViewMaps,
       flatPageLayoutMaps,
@@ -831,6 +832,10 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       'flatPageLayoutMaps',
       'flatAgentChatChannelMaps',
     ]);
+
+    const optimisticFlatNavigationMenuItemMaps = structuredClone(
+      optimisticFlatNavigationMenuItemMaps,
+    );
 
     const workspaceCustomFlatApplication =
       (
@@ -854,7 +859,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       .find(
         (view) =>
           view.objectMetadataId === leadObjectMetadataId &&
-          view.key === 'INDEX' &&
+          view.key === ViewKey.INDEX &&
           view.type === ViewType.TABLE,
       );
 
@@ -870,7 +875,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
 
     const folderId = CRM_NAVIGATION_MENU_ITEM_IDS.folder;
     const existingFolder =
-      flatNavigationMenuItemMaps.byUniversalIdentifier[folderId];
+      optimisticFlatNavigationMenuItemMaps.byUniversalIdentifier[folderId];
 
     if (
       isDefined(existingFolder) &&
@@ -883,7 +888,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     }
 
     const conflictingFolder = Object.values(
-      flatNavigationMenuItemMaps.byUniversalIdentifier,
+      optimisticFlatNavigationMenuItemMaps.byUniversalIdentifier,
     )
       .filter(isDefined)
       .find(
@@ -910,7 +915,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       folderId?: string;
     }) => {
       const existing =
-        flatNavigationMenuItemMaps.byUniversalIdentifier[input.id];
+        optimisticFlatNavigationMenuItemMaps.byUniversalIdentifier[input.id];
 
       if (isDefined(existing)) {
         if (
@@ -928,7 +933,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       }
 
       const sameNameInFolder =
-        flatNavigationMenuItemMaps.byUserWorkspaceIdAndFolderId['null']?.[
+        optimisticFlatNavigationMenuItemMaps.byUserWorkspaceIdAndFolderId['null']?.[
           input.folderId ?? 'null'
         ]?.find(
           (item) =>
@@ -954,7 +959,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           },
           workspaceId,
           flatApplication: workspaceCustomFlatApplication,
-          flatNavigationMenuItemMaps,
+          optimisticFlatNavigationMenuItemMaps,
           flatObjectMetadataMaps,
           flatViewMaps,
           flatPageLayoutMaps,
@@ -963,14 +968,14 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
 
       addFlatNavigationMenuItemToMapsAndUpdateIndex({
         flatNavigationMenuItem,
-        flatNavigationMenuItemMaps,
+        optimisticFlatNavigationMenuItemMaps,
       });
       navigationItemsToCreate.push(flatNavigationMenuItem);
     };
 
     if (!isDefined(existingFolder)) {
       const rootItems =
-        flatNavigationMenuItemMaps.byUserWorkspaceIdAndFolderId['null']?.[
+        optimisticFlatNavigationMenuItemMaps.byUserWorkspaceIdAndFolderId['null']?.[
           'null'
         ] ?? [];
       const nextRootPosition =
