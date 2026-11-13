@@ -18,9 +18,7 @@ export const CreateLeadTaskButton = ({
 }: {
   leadRecordId: string;
 }) => {
-  const currentWorkspaceMember = useAtomStateValue(
-    currentWorkspaceMemberState,
-  );
+  const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
   const { createOneRecord, loading } = useCreateOneRecord<LeadTaskRecord>({
     objectNameSingular: 'task',
     shouldMatchRootQueryFilter: true,

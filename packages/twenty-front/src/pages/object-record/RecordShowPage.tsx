@@ -79,9 +79,7 @@ export const RecordShowPage = () => {
       <>
         <CreateLeadTaskButton leadRecordId={parameters.objectRecordId} />
         {canCreateCalendarEvent ? (
-          <ScheduleLeadMeetingButton
-            leadRecordId={parameters.objectRecordId}
-          />
+          <ScheduleLeadMeetingButton leadRecordId={parameters.objectRecordId} />
         ) : null}
       </>
     ) : undefined;
