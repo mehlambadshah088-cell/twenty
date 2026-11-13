@@ -3,7 +3,10 @@ import { AppPath, StandardObjectNameSingular } from 'twenty-shared/types';
 import { getAppPath, isDefined } from 'twenty-shared/utils';
 
 import { WorkspaceRouteUnavailable } from '@/ui/layout/page/components/WorkspaceRouteUnavailable';
+import { CreateLeadTaskButton } from '@/modules/crm/components/CreateLeadTaskButton';
 import { ScheduleLeadMeetingButton } from '@/modules/crm/components/ScheduleLeadMeetingButton';
+import { useHasPermissionFlag } from '@/settings/roles/hooks/useHasPermissionFlag';
+import { PermissionFlagType } from '~/generated-metadata/graphql';
 import { findCoreObjectShowPage } from '@/object-core/utils/findCoreObjectShowPage';
 import { isWorkspaceWorkflowVersionRouteHidden } from '@/object-core/workflows/utils/isWorkspaceWorkflowVersionRouteHidden';
 import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
@@ -18,6 +21,9 @@ export const RecordShowPage = () => {
   const parameters = useParams<RecordShowPageParameters>();
   const workspaceSurface = useWorkspaceSurface();
   const { objectMetadataItems } = useObjectMetadataItems();
+  const canCreateCalendarEvent = useHasPermissionFlag(
+    PermissionFlagType.CREATE_CALENDAR_EVENT_TOOL,
+  );
 
   const isInSidePanel = workspaceSurface.type === 'side-panel';
   const isRouteObjectMetadataAvailable =
@@ -67,16 +73,23 @@ export const RecordShowPage = () => {
     return <CoreObjectShowPage objectRecordId={parameters.objectRecordId} />;
   }
 
-  const leadMeetingAction =
+  const leadHeaderActions =
     parameters.objectNameSingular === 'lead' &&
     isDefined(parameters.objectRecordId) ? (
-      <ScheduleLeadMeetingButton leadRecordId={parameters.objectRecordId} />
+      <>
+        <CreateLeadTaskButton leadRecordId={parameters.objectRecordId} />
+        {canCreateCalendarEvent ? (
+          <ScheduleLeadMeetingButton
+            leadRecordId={parameters.objectRecordId}
+          />
+        ) : null}
+      </>
     ) : undefined;
 
   return (
     <RecordShowPageContent
       parameters={parameters}
-      headerActions={leadMeetingAction}
+      headerActions={leadHeaderActions}
     />
   );
 };

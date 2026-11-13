@@ -108,11 +108,8 @@ export class CrmLeadCalendarService {
     );
     const availableUserIds = new Set(
       userWorkspaces
-        .filter(
-          (userWorkspace) =>
-            isDefined(userWorkspace) &&
-            userWorkspace.workspaceId === workspaceId,
-        )
+        .filter(isDefined)
+        .filter((userWorkspace) => userWorkspace.workspaceId === workspaceId)
         .map((userWorkspace) => userWorkspace.userId),
     );
 

@@ -93,6 +93,7 @@ const CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS = {
   nextFollowUpAt: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e8',
   lastContactedAt: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e9',
   notes: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094ea',
+  tasks: 'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e8',
 } as const;
 
 @Command({
@@ -215,6 +216,17 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     if (!isDefined(workspaceMemberObjectMetadata)) {
       throw new Error(
         `Cannot provision CRM Lead assignment: workspaceMember object is missing in workspace ${workspaceId}.`,
+      );
+    }
+
+    const taskObjectMetadata =
+      refreshedFlatObjectMetadataMaps.byUniversalIdentifier[
+        STANDARD_OBJECTS.task.universalIdentifier
+      ];
+
+    if (!isDefined(taskObjectMetadata)) {
+      throw new Error(
+        `Cannot provision CRM Lead tasks: standard Task object is missing in workspace ${workspaceId}.`,
       );
     }
 
@@ -401,6 +413,22 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           type: RelationType.MANY_TO_ONE,
           targetObjectMetadataId: workspaceMemberObjectMetadata.id,
           targetFieldLabel: 'Assigned Leads',
+          targetFieldIcon: 'IconTarget',
+        },
+      },
+      {
+        objectMetadataId: leadObjectMetadata.id,
+        universalIdentifier: CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.tasks,
+        type: FieldMetadataType.RELATION,
+        name: 'tasks',
+        label: 'Tasks',
+        description: 'Tasks and follow-ups linked to this Lead.',
+        icon: 'IconCheckbox',
+        isNullable: true,
+        relationCreationPayload: {
+          type: RelationType.ONE_TO_MANY,
+          targetObjectMetadataId: taskObjectMetadata.id,
+          targetFieldLabel: 'Lead',
           targetFieldIcon: 'IconTarget',
         },
       },
