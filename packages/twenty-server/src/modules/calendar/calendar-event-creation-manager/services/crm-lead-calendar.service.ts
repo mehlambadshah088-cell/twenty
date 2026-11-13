@@ -109,10 +109,7 @@ export class CrmLeadCalendarService {
       );
     }
 
-    const leadRecord = await this.findLeadRecord(
-      input.leadRecordId,
-      workspaceId,
-    );
+    const leadRecord = await this.findLeadRecord(input.leadRecordId);
     const leadName =
       typeof leadRecord.name === 'string' ? leadRecord.name.trim() : '';
 
@@ -223,7 +220,6 @@ export class CrmLeadCalendarService {
 
   private async findLeadRecord(
     leadRecordId: string,
-    workspaceId: string,
   ): Promise<ObjectRecord> {
     const leadRecord = await this.workspaceOrmManager.executeInWorkspaceContext(
       async () => {
