@@ -27,6 +27,21 @@ export class CrmLeadCalendarAvailabilityInput {
 }
 
 @ObjectType()
+export class CrmLeadCalendarOwner {
+  @Field(() => String)
+  id: string;
+
+  @Field(() => String)
+  name: string;
+
+  @Field(() => String)
+  email: string;
+
+  @Field(() => String, { nullable: true })
+  timeZone?: string | null;
+}
+
+@ObjectType()
 export class CrmLeadCalendarBusyInterval {
   @Field(() => String)
   start: string;
