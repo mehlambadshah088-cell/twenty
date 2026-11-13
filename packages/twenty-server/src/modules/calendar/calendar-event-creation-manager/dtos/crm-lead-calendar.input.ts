@@ -2,10 +2,7 @@ import { Field, InputType, ObjectType } from '@nestjs/graphql';
 
 import {
   IsDateString,
-  IsEmail,
-  IsNotEmpty,
   IsOptional,
-  IsString,
   IsUUID,
 } from 'class-validator';
 
@@ -63,16 +60,6 @@ export class BookCrmLeadMeetingInput {
   @IsUUID()
   @Field(() => String)
   leadRecordId: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @Field(() => String)
-  leadName: string;
-
-  @IsOptional()
-  @IsEmail()
-  @Field(() => String, { nullable: true })
-  leadEmail?: string;
 
   @IsDateString()
   @Field(() => String)
