@@ -2,18 +2,20 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 
 import { google } from 'googleapis';
-import { ConnectedAccountProvider } from 'twenty-shared/types';
+import { ConnectedAccountProvider, type ObjectRecord } from 'twenty-shared/types';
 import { IsNull, type DataSource, type Repository } from 'typeorm';
 
 import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
-import { WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
+import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 import { CalendarEventComposerService } from 'src/modules/calendar/calendar-event-creation-manager/services/calendar-event-composer.service';
 import { CreateCalendarEventService } from 'src/modules/calendar/calendar-event-creation-manager/services/create-calendar-event.service';
 import {
@@ -53,6 +55,7 @@ export class CrmLeadCalendarService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly userWorkspaceService: UserWorkspaceService,
+    private readonly workspaceOrmManager: WorkspaceOrmManager,
     private readonly googleOAuth2ClientProvider: GoogleOAuth2ClientProvider,
     private readonly calendarEventComposerService: CalendarEventComposerService,
     private readonly createCalendarEventService: CreateCalendarEventService,
@@ -106,13 +109,33 @@ export class CrmLeadCalendarService {
       );
     }
 
-    const leadName = input.leadName.trim();
+    const leadRecord = await this.findLeadRecord(
+      input.leadRecordId,
+      workspaceId,
+    );
+    const leadName =
+      typeof leadRecord.name === 'string' ? leadRecord.name.trim() : '';
 
     if (!leadName) {
-      throw new BadRequestException('A lead name is required to book a meeting.');
+      throw new BadRequestException(
+        'The selected Lead record must have a name before a meeting can be booked.',
+      );
     }
 
-    const leadEmail = input.leadEmail?.trim();
+    const leadEmails = leadRecord.emails as
+      | { primaryEmail?: unknown }
+      | null
+      | undefined;
+    const leadEmail =
+      typeof leadEmails?.primaryEmail === 'string'
+        ? leadEmails.primaryEmail.trim()
+        : '';
+    const leadCompany =
+      typeof leadRecord.company === 'string' ? leadRecord.company.trim() : '';
+    const leadServiceInterest =
+      typeof leadRecord.serviceInterest === 'string'
+        ? leadRecord.serviceInterest
+        : '';
     const timeZone = this.resolveTimeZone(
       input.timeZone,
       ownerWorkspaceMember.timeZone,
@@ -120,6 +143,8 @@ export class CrmLeadCalendarService {
     const attendees = [...new Set([employeeEmail, ...(leadEmail ? [leadEmail] : [])])];
     const description = [
       input.description?.trim(),
+      leadCompany ? 'Company: ' + leadCompany : '',
+      leadServiceInterest ? 'Service interest: ' + leadServiceInterest : '',
       'CRM lead record: ' + input.leadRecordId,
     ]
       .filter((value): value is string => Boolean(value))
@@ -194,6 +219,36 @@ export class CrmLeadCalendarService {
         busyIntervals: [],
       };
     });
+  }
+
+  private async findLeadRecord(
+    leadRecordId: string,
+    workspaceId: string,
+  ): Promise<ObjectRecord> {
+    const leadRecord = await this.workspaceOrmManager.executeInWorkspaceContext(
+      async () => {
+        const leadRepository =
+          this.workspaceOrmManager.getRepository<ObjectRecord>('lead');
+
+        if (!leadRepository.isObjectOperationPermittedByRole('select')) {
+          throw new ForbiddenException(
+            'You do not have permission to view this Lead record.',
+          );
+        }
+
+        return leadRepository.findOne({
+          where: { id: leadRecordId },
+        });
+      },
+    );
+
+    if (!leadRecord) {
+      throw new NotFoundException(
+        'The selected Lead record was not found or is not accessible in this workspace.',
+      );
+    }
+
+    return leadRecord;
   }
 
   private async resolveOwnerCalendar(
