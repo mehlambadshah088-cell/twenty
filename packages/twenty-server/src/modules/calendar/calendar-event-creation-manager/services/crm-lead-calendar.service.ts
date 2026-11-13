@@ -37,7 +37,7 @@ const GOOGLE_CALENDAR_FREEBUSY_SCOPES = [
   'https://www.googleapis.com/auth/calendar',
 ];
 const MAX_CALENDAR_QUERY_WINDOW_MS = 31 * 24 * 60 * 60 * 1000;
-const OFFSET_DATE_TIME_PATTERN = /(?:Z|[+-]\\d{2}:\\d{2})$/i;
+const OFFSET_DATE_TIME_PATTERN = /(?:Z|[+-]\d{2}:\d{2})$/i;
 
 type OwnerCalendarContext = {
   ownerWorkspaceMember: WorkspaceMemberWorkspaceEntity;
@@ -145,7 +145,7 @@ export class CrmLeadCalendarService {
       'CRM lead record: ' + input.leadRecordId,
     ]
       .filter((value): value is string => Boolean(value))
-      .join('\\n\\n');
+      .join('\n\n');
 
     return this.dataSource.transaction(async (manager) => {
       // Serialize bookings for this owner's primary calendar. The lock is held
