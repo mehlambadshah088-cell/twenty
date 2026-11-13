@@ -14,6 +14,7 @@ import {
   BookCrmLeadMeetingOutput,
   CrmLeadCalendarAvailability,
   CrmLeadCalendarAvailabilityInput,
+  CrmLeadCalendarOwner,
 } from 'src/modules/calendar/calendar-event-creation-manager/dtos/crm-lead-calendar.input';
 import { CrmLeadCalendarService } from 'src/modules/calendar/calendar-event-creation-manager/services/crm-lead-calendar.service';
 
@@ -40,6 +41,13 @@ export class CrmLeadCalendarResolver {
   constructor(
     private readonly crmLeadCalendarService: CrmLeadCalendarService,
   ) {}
+
+  @Query(() => [CrmLeadCalendarOwner])
+  async crmLeadCalendarOwners(
+    @AuthWorkspace() workspace: WorkspaceEntity,
+  ): Promise<CrmLeadCalendarOwner[]> {
+    return this.crmLeadCalendarService.getAvailableOwners(workspace.id);
+  }
 
   @Query(() => CrmLeadCalendarAvailability)
   async crmLeadCalendarAvailability(
