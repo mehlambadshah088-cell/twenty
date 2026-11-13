@@ -45,6 +45,17 @@ const CRM_LEAD_VIEW_IDENTIFIERS = {
 } as const;
 
 const CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = {
+  allLeads: [
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e1',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e2',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e6',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e7',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e8',
+    'e6240a9b-1c7a-4ef5-8cb7-4e42d1c094e9',
+  ],
   pipeline: [
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e6',
@@ -533,11 +544,13 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
       flatViewMaps,
+      flatViewFieldMaps,
       flatViewFieldGroupMaps,
     } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
       'flatObjectMetadataMaps',
       'flatFieldMetadataMaps',
       'flatViewMaps',
+      'flatViewFieldMaps',
       'flatViewFieldGroupMaps',
     ]);
 
@@ -602,6 +615,9 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     const nextFollowUpAtField = getLeadField(
       CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.nextFollowUpAt,
     );
+    const lastContactedAtField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.lastContactedAt,
+    );
     const viewDefinitions = [
       {
         identifier: CRM_LEAD_VIEW_IDENTIFIERS.pipeline,
@@ -643,6 +659,69 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       },
     ] as const;
 
+    const allLeadsIndexView = Object.values(
+      flatViewMaps.byUniversalIdentifier,
+    )
+      .filter(isDefined)
+      .find(
+        (view) =>
+          view.objectMetadataId === leadObjectMetadataId &&
+          view.key === ViewKey.INDEX &&
+          view.type === ViewType.TABLE,
+      );
+
+    if (!isDefined(allLeadsIndexView)) {
+      throw new Error(
+        `The native All Leads index view is missing in workspace ${workspaceId}.`,
+      );
+    }
+
+    const allLeadsTableFields = [
+      companyField.id,
+      emailsField.id,
+      phonesField.id,
+      sourceField.id,
+      serviceInterestField.id,
+      stageField.id,
+      assignedToField.id,
+      nextFollowUpAtField.id,
+      lastContactedAtField.id,
+    ];
+
+    const tableViewFieldsToCreate = allLeadsTableFields
+      .map((fieldMetadataId, index) => ({
+        fieldMetadataId,
+        universalIdentifier:
+          CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.allLeads[index],
+        position: index + 1,
+      }))
+      .filter(({ fieldMetadataId, universalIdentifier }) => {
+        const existingWithUniversalIdentifier =
+          flatViewFieldMaps.byUniversalIdentifier[universalIdentifier];
+
+        if (isDefined(existingWithUniversalIdentifier)) {
+          if (
+            existingWithUniversalIdentifier.viewId !== allLeadsIndexView.id ||
+            existingWithUniversalIdentifier.fieldMetadataId !==
+              fieldMetadataId
+          ) {
+            throw new Error(
+              `CRM All Leads table field identifier ${universalIdentifier} is already used by a different view field in workspace ${workspaceId}.`,
+            );
+          }
+
+          return false;
+        }
+
+        return !Object.values(flatViewFieldMaps.byUniversalIdentifier)
+          .filter(isDefined)
+          .some(
+            (viewField) =>
+              viewField.viewId === allLeadsIndexView.id &&
+              viewField.fieldMetadataId === fieldMetadataId,
+          );
+      });
+
     const viewsToCreate = viewDefinitions.filter((definition) => {
       const existingView =
         flatViewMaps.byUniversalIdentifier[
@@ -673,10 +752,10 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       return true;
     });
 
-    if (viewsToCreate.length === 0) {
+    if (viewsToCreate.length === 0 && tableViewFieldsToCreate.length === 0) {
       this.logger.log(
         doNotTranslate(
-          `CRM Lead pipeline and follow-up calendar already exist in workspace ${workspaceId}; skipping view creation`,
+          `CRM Lead views and All Leads columns already exist in workspace ${workspaceId}; skipping view creation`,
         ),
       );
 
@@ -692,7 +771,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     if (options.dryRun) {
       this.logger.log(
         doNotTranslate(
-          `[DRY RUN] Would create CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ') || 'none'}; default the pipeline board`,
+          `[DRY RUN] Would create CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ') || 'none'}; add ${tableViewFieldsToCreate.length} All Leads column(s)`,
         ),
       );
 
@@ -767,6 +846,27 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       });
     }
 
+    tableViewFieldsToCreate.forEach(
+      ({ fieldMetadataId, universalIdentifier, position }) => {
+        flatViewFieldsToCreate.push(
+          fromCreateViewFieldInputToFlatViewFieldToCreate({
+            createViewFieldInput: {
+              viewId: allLeadsIndexView.id,
+              fieldMetadataId,
+              isVisible: true,
+              size: 180,
+              position,
+              universalIdentifier,
+            },
+            flatApplication: workspaceCustomFlatApplication,
+            flatFieldMetadataMaps,
+            flatViewMaps: flatViewMapsForCreation,
+            flatViewFieldGroupMaps,
+          }),
+        );
+      },
+    );
+
     const validateAndBuildResult =
       await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration({
         allFlatEntityOperationByMetadataName: {
@@ -801,7 +901,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
 
     this.logger.log(
       doNotTranslate(
-        `Created CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ')}`,
+        `Updated CRM Lead views and All Leads columns in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ') || 'views already existed'}; added ${tableViewFieldsToCreate.length} table column(s)`,
       ),
     );
 
