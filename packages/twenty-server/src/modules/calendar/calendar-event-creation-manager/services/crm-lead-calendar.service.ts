@@ -1,0 +1,377 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+
+import { google } from 'googleapis';
+import { ConnectedAccountProvider } from 'twenty-shared/types';
+import { IsNull, type DataSource, type Repository } from 'typeorm';
+
+import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
+import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
+import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
+import { CalendarEventComposerService } from 'src/modules/calendar/calendar-event-creation-manager/services/calendar-event-composer.service';
+import { CreateCalendarEventService } from 'src/modules/calendar/calendar-event-creation-manager/services/create-calendar-event.service';
+import {
+  BookCrmLeadMeetingInput,
+  BookCrmLeadMeetingOutput,
+  CrmLeadCalendarAvailabilityInput,
+  CrmLeadCalendarAvailability,
+  CrmLeadCalendarBusyInterval,
+} from 'src/modules/calendar/calendar-event-creation-manager/dtos/crm-lead-calendar.input';
+import { GoogleOAuth2ClientProvider } from 'src/modules/connected-account/oauth2-client-manager/drivers/google/google-oauth2-client.provider';
+import { isValidTimeZone } from 'src/modules/calendar/calendar-event-creation-manager/utils/is-valid-time-zone.util';
+import { resolveCalendarEventTimeZone } from 'src/modules/calendar/calendar-event-creation-manager/utils/resolve-calendar-event-time-zone.util';
+
+const GOOGLE_PRIMARY_CALENDAR_ID = 'primary';
+const GOOGLE_CALENDAR_FREEBUSY_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.freebusy',
+  'https://www.googleapis.com/auth/calendar.events.freebusy',
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar',
+];
+const MAX_CALENDAR_QUERY_WINDOW_MS = 31 * 24 * 60 * 60 * 1000;
+const OFFSET_DATE_TIME_PATTERN = /(?:Z|[+-]\\d{2}:\\d{2})$/i;
+
+type OwnerCalendarContext = {
+  ownerWorkspaceMember: WorkspaceMemberWorkspaceEntity;
+  connectedAccount: ConnectedAccountEntity;
+  calendarChannel: CalendarChannelEntity;
+};
+
+@Injectable()
+export class CrmLeadCalendarService {
+  constructor(
+    @InjectRepository(ConnectedAccountEntity)
+    private readonly connectedAccountRepository: Repository<ConnectedAccountEntity>,
+    @InjectRepository(CalendarChannelEntity)
+    private readonly calendarChannelRepository: Repository<CalendarChannelEntity>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+    private readonly userWorkspaceService: UserWorkspaceService,
+    private readonly googleOAuth2ClientProvider: GoogleOAuth2ClientProvider,
+    private readonly calendarEventComposerService: CalendarEventComposerService,
+    private readonly createCalendarEventService: CreateCalendarEventService,
+  ) {}
+
+  async getAvailability(
+    input: CrmLeadCalendarAvailabilityInput,
+    workspaceId: string,
+  ): Promise<CrmLeadCalendarAvailability> {
+    this.validateTimeWindow(input.startsAt, input.endsAt);
+
+    const { ownerWorkspaceMember, connectedAccount } =
+      await this.resolveOwnerCalendar(input.ownerWorkspaceMemberId, workspaceId);
+    const timeZone = this.resolveTimeZone(
+      input.timeZone,
+      ownerWorkspaceMember.timeZone,
+    );
+    const busyIntervals = await this.getBusyIntervals({
+      connectedAccount,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      timeZone,
+    });
+
+    return {
+      available: !this.hasOverlap(busyIntervals, input.startsAt, input.endsAt),
+      timeZone,
+      busyIntervals,
+    };
+  }
+
+  async bookMeeting(
+    input: BookCrmLeadMeetingInput,
+    workspaceId: string,
+  ): Promise<BookCrmLeadMeetingOutput> {
+    this.validateTimeWindow(input.startsAt, input.endsAt);
+
+    const { ownerWorkspaceMember, connectedAccount } =
+      await this.resolveOwnerCalendar(input.ownerWorkspaceMemberId, workspaceId);
+    const employeeWorkspaceMember =
+      await this.userWorkspaceService.getWorkspaceMemberOrThrow({
+        workspaceMemberId: input.employeeWorkspaceMemberId,
+        workspaceId,
+      });
+
+    const employeeEmail = employeeWorkspaceMember.userEmail?.trim();
+
+    if (!employeeEmail) {
+      throw new BadRequestException(
+        'The assigned employee must have an email address in their workspace profile before a meeting can be booked.',
+      );
+    }
+
+    const leadName = input.leadName.trim();
+
+    if (!leadName) {
+      throw new BadRequestException('A lead name is required to book a meeting.');
+    }
+
+    const leadEmail = input.leadEmail?.trim();
+    const timeZone = this.resolveTimeZone(
+      input.timeZone,
+      ownerWorkspaceMember.timeZone,
+    );
+    const attendees = [...new Set([employeeEmail, ...(leadEmail ? [leadEmail] : [])])];
+    const description = [
+      input.description?.trim(),
+      'CRM lead record: ' + input.leadRecordId,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join('\\n\\n');
+
+    return this.dataSource.transaction(async (manager) => {
+      // Serialize bookings for this owner's primary calendar. The lock is held
+      // while we re-check Google FreeBusy and submit the event, so concurrent
+      // CRM booking requests cannot both pass the same availability check.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        'crm-lead-booking:' + workspaceId + ':' + connectedAccount.id,
+      ]);
+
+      const busyIntervals = await this.getBusyIntervals({
+        connectedAccount,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        timeZone,
+      });
+
+      if (this.hasOverlap(busyIntervals, input.startsAt, input.endsAt)) {
+        return {
+          success: false,
+          message:
+            'This owner is no longer available for the selected time. Please choose another slot.',
+          busyIntervals,
+        };
+      }
+
+      const composedResult =
+        await this.calendarEventComposerService.composeCalendarEvent(
+          {
+            connectedAccountId: connectedAccount.id,
+            title: 'The Corent | ' + leadName,
+            description,
+            location: input.location,
+            startsAt: input.startsAt,
+            endsAt: input.endsAt,
+            isFullDay: false,
+            timeZone,
+            attendees: attendees.join(','),
+            sendInvitations: true,
+            addConferencing: true,
+          },
+          workspaceId,
+        );
+
+      if (!composedResult.success) {
+        throw new ServiceUnavailableException(
+          'The owner calendar is not ready to create events. Check the Google Calendar connection and event permissions.',
+        );
+      }
+
+      const createdEvent =
+        await this.createCalendarEventService.createComposedCalendarEvent(
+          composedResult.data,
+        );
+      const calendarEventId =
+        await this.createCalendarEventService.persistCalendarEvent(
+          createdEvent,
+          composedResult.data,
+          workspaceId,
+        );
+
+      return {
+        success: true,
+        message:
+          'Meeting booked. The event was added to the owner calendar and invitations were sent to the employee' +
+          (leadEmail ? ' and lead.' : '.'),
+        calendarEventId: calendarEventId ?? undefined,
+        conferenceLink: createdEvent.conferenceLinkUrl || undefined,
+        busyIntervals: [],
+      };
+    });
+  }
+
+  private async resolveOwnerCalendar(
+    ownerWorkspaceMemberId: string,
+    workspaceId: string,
+  ): Promise<OwnerCalendarContext> {
+    const ownerWorkspaceMember =
+      await this.userWorkspaceService.getWorkspaceMemberOrThrow({
+        workspaceMemberId: ownerWorkspaceMemberId,
+        workspaceId,
+      });
+    const ownerUserWorkspace =
+      await this.userWorkspaceService.getUserWorkspaceForUserOrThrow({
+        userId: ownerWorkspaceMember.userId,
+        workspaceId,
+        relations: [],
+      });
+    const connectedAccounts = await this.connectedAccountRepository.find({
+      where: {
+        workspaceId,
+        userWorkspaceId: ownerUserWorkspace.id,
+        provider: ConnectedAccountProvider.GOOGLE,
+        scope: 'USER',
+        archivedAt: IsNull(),
+      },
+      order: { updatedAt: 'DESC' },
+    });
+
+    for (const connectedAccount of connectedAccounts) {
+      const calendarChannel = await this.calendarChannelRepository.findOne({
+        where: {
+          workspaceId,
+          connectedAccountId: connectedAccount.id,
+          isSyncEnabled: true,
+        },
+        order: { createdAt: 'ASC' },
+      });
+
+      if (!calendarChannel) {
+        continue;
+      }
+
+      if (
+        !connectedAccount.scopes?.some((scope) =>
+          GOOGLE_CALENDAR_FREEBUSY_SCOPES.includes(scope),
+        )
+      ) {
+        throw new ForbiddenException(
+          'The selected owner must reconnect Google Calendar and grant availability access before staff can book their calendar.',
+        );
+      }
+
+      return {
+        ownerWorkspaceMember,
+        connectedAccount,
+        calendarChannel,
+      };
+    }
+
+    throw new BadRequestException(
+      'The selected owner does not have a connected Google Calendar with calendar sync enabled.',
+    );
+  }
+
+  private async getBusyIntervals({
+    connectedAccount,
+    startsAt,
+    endsAt,
+    timeZone,
+  }: {
+    connectedAccount: ConnectedAccountEntity;
+    startsAt: string;
+    endsAt: string;
+    timeZone: string;
+  }): Promise<CrmLeadCalendarBusyInterval[]> {
+    const oAuth2Client = await this.googleOAuth2ClientProvider.getClient(
+      connectedAccount.id,
+    );
+    const googleCalendarClient = google.calendar({
+      version: 'v3',
+      auth: oAuth2Client,
+    });
+
+    let response;
+
+    try {
+      response = await googleCalendarClient.freebusy.query({
+        requestBody: {
+          timeMin: startsAt,
+          timeMax: endsAt,
+          timeZone,
+          items: [{ id: GOOGLE_PRIMARY_CALENDAR_ID }],
+        },
+      });
+    } catch {
+      throw new ServiceUnavailableException(
+        'Google Calendar availability could not be checked. No booking was made.',
+      );
+    }
+
+    const calendarAvailability =
+      response.data.calendars?.[GOOGLE_PRIMARY_CALENDAR_ID];
+
+    if (
+      !calendarAvailability ||
+      (calendarAvailability.errors?.length ?? 0) > 0
+    ) {
+      throw new ServiceUnavailableException(
+        'Google Calendar did not return a reliable availability response. No booking was made.',
+      );
+    }
+
+    return (calendarAvailability.busy ?? []).map((interval) => {
+      if (!interval.start || !interval.end) {
+        throw new ServiceUnavailableException(
+          'Google Calendar returned an incomplete busy interval. No booking was made.',
+        );
+      }
+
+      return {
+        start: interval.start,
+        end: interval.end,
+      };
+    });
+  }
+
+  private hasOverlap(
+    busyIntervals: CrmLeadCalendarBusyInterval[],
+    startsAt: string,
+    endsAt: string,
+  ): boolean {
+    const requestedStart = Date.parse(startsAt);
+    const requestedEnd = Date.parse(endsAt);
+
+    return busyIntervals.some(
+      (interval) =>
+        Date.parse(interval.start) < requestedEnd &&
+        Date.parse(interval.end) > requestedStart,
+    );
+  }
+
+  private validateTimeWindow(startsAt: string, endsAt: string): void {
+    const startsAtTimestamp = Date.parse(startsAt);
+    const endsAtTimestamp = Date.parse(endsAt);
+
+    if (
+      !OFFSET_DATE_TIME_PATTERN.test(startsAt) ||
+      !OFFSET_DATE_TIME_PATTERN.test(endsAt) ||
+      Number.isNaN(startsAtTimestamp) ||
+      Number.isNaN(endsAtTimestamp) ||
+      endsAtTimestamp <= startsAtTimestamp
+    ) {
+      throw new BadRequestException(
+        'Meeting start and end must be valid ISO 8601 date-times with an explicit timezone offset, and the end must be later than the start.',
+      );
+    }
+
+    if (endsAtTimestamp - startsAtTimestamp > MAX_CALENDAR_QUERY_WINDOW_MS) {
+      throw new BadRequestException(
+        'The requested calendar window cannot be longer than 31 days.',
+      );
+    }
+  }
+
+  private resolveTimeZone(
+    requestedTimeZone: string | undefined,
+    ownerTimeZone: string | null | undefined,
+  ): string {
+    const timeZone = resolveCalendarEventTimeZone(
+      requestedTimeZone?.trim() || ownerTimeZone || undefined,
+    );
+
+    if (!isValidTimeZone(timeZone)) {
+      throw new BadRequestException(
+        'The selected timezone is not a valid IANA timezone.',
+      );
+    }
+
+    return timeZone;
+  }
+}
