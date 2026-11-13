@@ -19,7 +19,6 @@ import { isDefined } from 'twenty-shared/utils';
 import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
-import { CalendarChannelEntity } from 'src/engine/metadata-modules/calendar-channel/entities/calendar-channel.entity';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 import { CalendarEventComposerService } from 'src/modules/calendar/calendar-event-creation-manager/services/calendar-event-composer.service';
@@ -51,7 +50,6 @@ const OFFSET_DATE_TIME_PATTERN = /(?:Z|[+-]\d{2}:\d{2})$/i;
 type OwnerCalendarContext = {
   ownerWorkspaceMember: WorkspaceMemberWorkspaceEntity;
   connectedAccount: ConnectedAccountEntity;
-  calendarChannel: CalendarChannelEntity;
 };
 
 @Injectable()
@@ -61,8 +59,6 @@ export class CrmLeadCalendarService {
   constructor(
     @InjectRepository(ConnectedAccountEntity)
     private readonly connectedAccountRepository: Repository<ConnectedAccountEntity>,
-    @InjectRepository(CalendarChannelEntity)
-    private readonly calendarChannelRepository: Repository<CalendarChannelEntity>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly userWorkspaceService: UserWorkspaceService,
@@ -410,38 +406,43 @@ export class CrmLeadCalendarService {
         scope: 'USER',
         archivedAt: IsNull(),
       },
+      relations: { calendarChannels: true },
       order: { updatedAt: 'DESC' },
     });
 
-    for (const connectedAccount of connectedAccounts) {
-      const calendarChannel = await this.calendarChannelRepository.findOne({
-        where: {
-          workspaceId,
-          connectedAccountId: connectedAccount.id,
-          isSyncEnabled: true,
-        },
-        order: { createdAt: 'ASC' },
-      });
+    const ownerCalendar = connectedAccounts
+      .map((connectedAccount) => ({
+        connectedAccount,
+        calendarChannel: connectedAccount.calendarChannels?.find(
+          (calendarChannel) => calendarChannel.isSyncEnabled,
+        ),
+      }))
+      .find(
+        ({ connectedAccount, calendarChannel }) =>
+          isDefined(calendarChannel) &&
+          connectedAccount.scopes?.includes(GOOGLE_CALENDAR_EVENTS_SCOPE) &&
+          connectedAccount.scopes?.some((scope) =>
+            GOOGLE_CALENDAR_FREEBUSY_SCOPES.includes(scope),
+          ),
+      );
 
-      if (!calendarChannel) {
-        continue;
-      }
-
-      if (
-        !connectedAccount.scopes?.some((scope) =>
-          GOOGLE_CALENDAR_FREEBUSY_SCOPES.includes(scope),
-        )
-      ) {
-        throw new ForbiddenException(
-          'The selected owner must reconnect Google Calendar and grant availability access before staff can book their calendar.',
-        );
-      }
-
+    if (isDefined(ownerCalendar)) {
       return {
         ownerWorkspaceMember,
-        connectedAccount,
-        calendarChannel,
+        connectedAccount: ownerCalendar.connectedAccount,
       };
+    }
+
+    const hasSynchronizedCalendar = connectedAccounts.some((connectedAccount) =>
+      connectedAccount.calendarChannels?.some(
+        (calendarChannel) => calendarChannel.isSyncEnabled,
+      ),
+    );
+
+    if (hasSynchronizedCalendar) {
+      throw new ForbiddenException(
+        'The selected owner must reconnect Google Calendar and grant event-creation and availability access before staff can book their calendar.',
+      );
     }
 
     throw new BadRequestException(
@@ -539,6 +540,12 @@ export class CrmLeadCalendarService {
     ) {
       throw new BadRequestException(
         'Meeting start and end must be valid ISO 8601 date-times with an explicit timezone offset, and the end must be later than the start.',
+      );
+    }
+
+    if (startsAtTimestamp <= Date.now()) {
+      throw new BadRequestException(
+        'Meeting start must be in the future.',
       );
     }
 
