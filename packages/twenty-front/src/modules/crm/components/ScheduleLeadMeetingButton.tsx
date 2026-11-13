@@ -443,10 +443,16 @@ export const ScheduleLeadMeetingButton = ({
                         setEmployeeWorkspaceMemberId(value ?? '');
                         resetCheck();
                       }}
-                      items={ownerOptions}
+                      items={employeeOptions}
                     >
                       <Select.Trigger>
-                        <Select.Value placeholder={t`Select employee`} />
+                        <Select.Value
+                          placeholder={
+                            loadingMembers
+                              ? t`Loading team members…`
+                              : t`Select employee`
+                          }
+                        />
                         <Select.Icon />
                       </Select.Trigger>
                       <Select.Portal>
