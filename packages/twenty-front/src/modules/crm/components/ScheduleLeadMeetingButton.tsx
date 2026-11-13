@@ -537,7 +537,7 @@ export const ScheduleLeadMeetingButton = ({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 8,
-                    border: '1px solid var(--border-color, #d0d5dd)',
+                    border: '1px solid var(--t-border-color-light)',
                     borderRadius: 8,
                     padding: 12,
                   }}
@@ -595,7 +595,7 @@ export const ScheduleLeadMeetingButton = ({
                         gap: 6,
                         borderRadius: 8,
                         padding: 10,
-                        border: '1px solid var(--border-color, #d0d5dd)',
+                        border: '1px solid var(--t-border-color-light)',
                       }}
                     >
                       <Text size="sm">{bookingMessage.message}</Text>

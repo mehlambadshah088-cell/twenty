@@ -488,17 +488,31 @@ export class CrmLeadCalendarService {
 
     if (
       !calendarAvailability ||
-      (calendarAvailability.errors?.length ?? 0) > 0
+      (calendarAvailability.errors?.length ?? 0) > 0 ||
+      !Array.isArray(calendarAvailability.busy)
     ) {
       throw new ServiceUnavailableException(
         'Google Calendar did not return a reliable availability response. No booking was made.',
       );
     }
 
-    return (calendarAvailability.busy ?? []).map((interval) => {
+    return calendarAvailability.busy.map((interval) => {
       if (!interval.start || !interval.end) {
         throw new ServiceUnavailableException(
           'Google Calendar returned an incomplete busy interval. No booking was made.',
+        );
+      }
+
+      const startTimestamp = Date.parse(interval.start);
+      const endTimestamp = Date.parse(interval.end);
+
+      if (
+        !Number.isFinite(startTimestamp) ||
+        !Number.isFinite(endTimestamp) ||
+        endTimestamp <= startTimestamp
+      ) {
+        throw new ServiceUnavailableException(
+          'Google Calendar returned an invalid busy interval. No booking was made.',
         );
       }
 
