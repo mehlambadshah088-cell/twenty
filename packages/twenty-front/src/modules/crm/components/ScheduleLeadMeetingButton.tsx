@@ -1,4 +1,4 @@
-import { useLazyQuery, useMutation } from '@apollo/client/react';
+import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react';
 import { useEffect, useMemo, useState } from 'react';
 import { Trans, useLingui } from '@lingui/react/macro';
 import gql from 'graphql-tag';
@@ -17,6 +17,17 @@ import { IconCalendarClock, IconVideo } from 'twenty-ui/icon';
 type BusyInterval = {
   start: string;
   end: string;
+};
+
+type CalendarOwner = {
+  id: string;
+  name: string;
+  email: string;
+  timeZone?: string | null;
+};
+
+type CalendarOwnersData = {
+  crmLeadCalendarOwners: CalendarOwner[];
 };
 
 type AvailabilityData = {
@@ -58,6 +69,10 @@ type BookingVariables = {
   };
 };
 
+const CRM_LEAD_CALENDAR_OWNERS = gql(
+  'query CrmLeadCalendarOwners { crmLeadCalendarOwners { id name email timeZone } }',
+);
+
 const CRM_LEAD_CALENDAR_AVAILABILITY = gql(
   'query CrmLeadCalendarAvailability($input: CrmLeadCalendarAvailabilityInput!) { crmLeadCalendarAvailability(input: $input) { available timeZone busyIntervals { start end } } }',
 );
@@ -74,11 +89,11 @@ const formatLocalDateTime = (date: Date): string => {
     .slice(0, 16);
 };
 
-const toIsoDateTime = (value: string): string => {
+const toIsoDateTime = (value: string, invalidMessage: string): string => {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    throw new Error(t`Enter a valid meeting date and time.`);
+    throw new Error(invalidMessage);
   }
 
   return date.toISOString();
@@ -109,6 +124,14 @@ export const ScheduleLeadMeetingButton = ({
   const currentWorkspaceMember = useAtomStateValue(
     currentWorkspaceMemberState,
   );
+  const {
+    data: calendarOwnersData,
+    loading: loadingOwners,
+  } = useQuery<CalendarOwnersData>(CRM_LEAD_CALENDAR_OWNERS, {
+    client: apolloCoreClient,
+    fetchPolicy: 'network-only',
+  });
+  const calendarOwners = calendarOwnersData?.crmLeadCalendarOwners ?? [];
   const { records: workspaceMembers, loading: loadingMembers } =
     useFindManyRecords<WorkspaceMember>({
       objectNameSingular: 'workspaceMember',
@@ -135,6 +158,15 @@ export const ScheduleLeadMeetingButton = ({
 
   const ownerOptions = useMemo(
     () =>
+      calendarOwners.map((owner) => ({
+        value: owner.id,
+        label: owner.name + ' · ' + owner.email,
+      })),
+    [calendarOwners],
+  );
+
+  const employeeOptions = useMemo(
+    () =>
       workspaceMembers
         .filter((member) => Boolean(member.userEmail))
         .map((member) => ({
@@ -144,8 +176,8 @@ export const ScheduleLeadMeetingButton = ({
     [workspaceMembers],
   );
 
-  const selectedOwner = workspaceMembers.find(
-    (member) => member.id === ownerWorkspaceMemberId,
+  const selectedOwner = calendarOwners.find(
+    (owner) => owner.id === ownerWorkspaceMemberId,
   );
   const timeZone =
     selectedOwner?.timeZone ||
@@ -205,8 +237,8 @@ export const ScheduleLeadMeetingButton = ({
     setOpen(nextOpen);
 
     if (nextOpen) {
-      if (!ownerWorkspaceMemberId && workspaceMembers.length > 0) {
-        setOwnerWorkspaceMemberId(workspaceMembers[0].id);
+      if (!ownerWorkspaceMemberId && ownerOptions.length > 0) {
+        setOwnerWorkspaceMemberId(ownerOptions[0].value);
       }
 
       if (currentWorkspaceMember?.id && !employeeWorkspaceMemberId) {
@@ -233,8 +265,8 @@ export const ScheduleLeadMeetingButton = ({
         variables: {
           input: {
             ownerWorkspaceMemberId,
-            startsAt: toIsoDateTime(startsAtLocal),
-            endsAt: toIsoDateTime(endsAtLocal),
+            startsAt: toIsoDateTime(startsAtLocal, t`Enter a valid meeting date and time.`),
+            endsAt: toIsoDateTime(endsAtLocal, t`Enter a valid meeting date and time.`),
             timeZone,
           },
         },
@@ -272,8 +304,8 @@ export const ScheduleLeadMeetingButton = ({
             ownerWorkspaceMemberId,
             employeeWorkspaceMemberId,
             leadRecordId,
-            startsAt: toIsoDateTime(startsAtLocal),
-            endsAt: toIsoDateTime(endsAtLocal),
+            startsAt: toIsoDateTime(startsAtLocal, t`Enter a valid meeting date and time.`),
+            endsAt: toIsoDateTime(endsAtLocal, t`Enter a valid meeting date and time.`),
             timeZone,
             description: description.trim() || undefined,
           },
@@ -347,6 +379,16 @@ export const ScheduleLeadMeetingButton = ({
             </Dialog.Header>
             <Dialog.Body>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {ownerOptions.length === 0 && !loadingOwners && (
+                  <Text size="sm">
+                    <Trans>
+                      No owners with a connected Google Calendar are available.
+                      Ask an owner to connect Google Calendar and grant
+                      availability access.
+                    </Trans>
+                  </Text>
+                )}
+
                 <div
                   style={{
                     display: 'grid',
@@ -367,8 +409,8 @@ export const ScheduleLeadMeetingButton = ({
                       <Select.Trigger>
                         <Select.Value
                           placeholder={
-                            loadingMembers
-                              ? t`Loading team members…`
+                            loadingOwners
+                              ? t`Loading connected owner calendars…`
                               : t`Select owner`
                           }
                         />
@@ -410,7 +452,7 @@ export const ScheduleLeadMeetingButton = ({
                       <Select.Portal>
                         <Select.Positioner align="start" sideOffset={4}>
                           <Select.Popup>
-                            {ownerOptions.map((option) => (
+                            {employeeOptions.map((option) => (
                               <Select.Item
                                 key={option.value}
                                 value={option.value}
