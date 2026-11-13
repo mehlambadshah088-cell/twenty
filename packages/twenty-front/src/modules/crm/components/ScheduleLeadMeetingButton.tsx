@@ -638,10 +638,7 @@ export const ScheduleLeadMeetingButton = ({
                           }}
                         >
                           {bookingMessage.busyIntervals.map((interval) => (
-                            <Text
-                              key={interval.start + interval.end}
-                              size="sm"
-                            >
+                            <Text key={interval.start + interval.end} size="sm">
                               {formatBusyTime(interval.start, timeZone)} –{' '}
                               {formatBusyTime(interval.end, timeZone)}
                             </Text>
