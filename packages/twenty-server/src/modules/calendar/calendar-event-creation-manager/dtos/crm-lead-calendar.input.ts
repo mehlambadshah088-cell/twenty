@@ -1,10 +1,6 @@
 import { Field, InputType, ObjectType } from '@nestjs/graphql';
 
-import {
-  IsDateString,
-  IsOptional,
-  IsUUID,
-} from 'class-validator';
+import { IsDateString, IsOptional, IsUUID } from 'class-validator';
 
 @InputType()
 export class CrmLeadCalendarAvailabilityInput {

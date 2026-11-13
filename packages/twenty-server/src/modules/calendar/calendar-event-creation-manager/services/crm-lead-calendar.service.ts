@@ -9,7 +9,10 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 
 import { google } from 'googleapis';
-import { ConnectedAccountProvider, type ObjectRecord } from 'twenty-shared/types';
+import {
+  ConnectedAccountProvider,
+  type ObjectRecord,
+} from 'twenty-shared/types';
 import { IsNull, type DataSource, type Repository } from 'typeorm';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -87,9 +90,7 @@ export class CrmLeadCalendarService {
       connectedAccounts
         .filter(
           (connectedAccount) =>
-            connectedAccount.scopes?.includes(
-              GOOGLE_CALENDAR_EVENTS_SCOPE,
-            ) &&
+            connectedAccount.scopes?.includes(GOOGLE_CALENDAR_EVENTS_SCOPE) &&
             connectedAccount.scopes?.some((scope) =>
               GOOGLE_CALENDAR_FREEBUSY_SCOPES.includes(scope),
             ) &&
@@ -124,17 +125,14 @@ export class CrmLeadCalendarService {
     }
 
     const workspaceMembers =
-      await this.workspaceOrmManager.executeInWorkspaceContext(
-        async () => {
-          const workspaceMemberRepository =
-            this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(
-              'workspaceMember',
-            );
+      await this.workspaceOrmManager.executeInWorkspaceContext(async () => {
+        const workspaceMemberRepository =
+          this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(
+            'workspaceMember',
+          );
 
-          return workspaceMemberRepository.find();
-        },
-        buildSystemAuthContext(workspaceId),
-      );
+        return workspaceMemberRepository.find();
+      }, buildSystemAuthContext(workspaceId));
 
     return workspaceMembers
       .filter(
@@ -145,12 +143,11 @@ export class CrmLeadCalendarService {
       .map((workspaceMember) => ({
         id: workspaceMember.id,
         name:
-          [
-            workspaceMember.name?.firstName,
-            workspaceMember.name?.lastName,
-          ]
+          [workspaceMember.name?.firstName, workspaceMember.name?.lastName]
             .filter(Boolean)
-            .join(' ') || workspaceMember.userEmail || 'Workspace member',
+            .join(' ') ||
+          workspaceMember.userEmail ||
+          'Workspace member',
         email: workspaceMember.userEmail as string,
         timeZone: workspaceMember.timeZone ?? null,
       }))
@@ -164,7 +161,10 @@ export class CrmLeadCalendarService {
     this.validateTimeWindow(input.startsAt, input.endsAt);
 
     const { ownerWorkspaceMember, connectedAccount } =
-      await this.resolveOwnerCalendar(input.ownerWorkspaceMemberId, workspaceId);
+      await this.resolveOwnerCalendar(
+        input.ownerWorkspaceMemberId,
+        workspaceId,
+      );
     const timeZone = this.resolveTimeZone(
       input.timeZone,
       ownerWorkspaceMember.timeZone,
@@ -190,7 +190,10 @@ export class CrmLeadCalendarService {
     this.validateTimeWindow(input.startsAt, input.endsAt);
 
     const { ownerWorkspaceMember, connectedAccount } =
-      await this.resolveOwnerCalendar(input.ownerWorkspaceMemberId, workspaceId);
+      await this.resolveOwnerCalendar(
+        input.ownerWorkspaceMemberId,
+        workspaceId,
+      );
     const employeeWorkspaceMember =
       await this.userWorkspaceService.getWorkspaceMemberOrThrow({
         workspaceMemberId: input.employeeWorkspaceMemberId,
@@ -233,7 +236,9 @@ export class CrmLeadCalendarService {
       input.timeZone,
       ownerWorkspaceMember.timeZone,
     );
-    const attendees = [...new Set([employeeEmail, ...(leadEmail ? [leadEmail] : [])])];
+    const attendees = [
+      ...new Set([employeeEmail, ...(leadEmail ? [leadEmail] : [])]),
+    ];
     const description = [
       input.description?.trim(),
       leadCompany ? 'Company: ' + leadCompany : '',
@@ -355,9 +360,7 @@ export class CrmLeadCalendarService {
     }
   }
 
-  private async findLeadRecord(
-    leadRecordId: string,
-  ): Promise<ObjectRecord> {
+  private async findLeadRecord(leadRecordId: string): Promise<ObjectRecord> {
     const leadRecord = await this.workspaceOrmManager.executeInWorkspaceContext(
       async () => {
         const leadRepository =
