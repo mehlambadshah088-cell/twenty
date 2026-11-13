@@ -1,6 +1,6 @@
 import { Command } from 'nest-commander';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
-import { FieldMetadataType, RelationType } from 'twenty-shared/types';
+import {\n  FieldMetadataType,\n  RelationType,\n  ViewCalendarLayout,\n  ViewType,\n  ViewVisibility,\n} from 'twenty-shared/types';
 import { doNotTranslate } from 'twenty-shared/i18n';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -10,13 +10,41 @@ import {
 } from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
-import { ObjectMetadataService } from 'src/engine/metadata-modules/object-metadata/object-metadata.service';
+import { ApplicationService } from 'src/engine/core-modules/application/application.service';\nimport { fromCreateViewFieldInputToFlatViewFieldToCreate } from 'src/engine/metadata-modules/flat-view-field/utils/from-create-view-field-input-to-flat-view-field-to-create.util';\nimport { fromCreateViewInputToFlatViewToCreate } from 'src/engine/metadata-modules/flat-view/utils/from-create-view-input-to-flat-view-to-create.util';\nimport { ObjectMetadataService } from 'src/engine/metadata-modules/object-metadata/object-metadata.service';
 import { type CreateFieldInput } from 'src/engine/metadata-modules/field-metadata/dtos/create-field.input';
 import { FieldMetadataService } from 'src/engine/metadata-modules/field-metadata/services/field-metadata.service';
-import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';\nimport { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';\nimport { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
 
 const CRM_LEAD_OBJECT_UNIVERSAL_IDENTIFIER =
   'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e1';
+
+const CRM_LEAD_VIEW_IDENTIFIERS = {
+  pipeline: {
+    id: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e1',
+    universalIdentifier: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e2',
+  },
+  followUpCalendar: {
+    id: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
+    universalIdentifier: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
+  },
+} as const;
+
+const CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = {
+  pipeline: [
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e6',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e7',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e8',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e9',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ea',
+  ],
+  followUpCalendar: [
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094eb',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ec',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ed',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ee',
+  ],
+} as const;
 
 const CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS = {
   company: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e2',
@@ -41,7 +69,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     protected readonly workspaceIteratorService: WorkspaceIteratorService,
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly objectMetadataService: ObjectMetadataService,
-    private readonly fieldMetadataService: FieldMetadataService,
+    private readonly fieldMetadataService: FieldMetadataService,\n    private readonly applicationService: ApplicationService,\n    private readonly workspaceMigrationValidateBuildAndRunService: WorkspaceMigrationValidateBuildAndRunService,
   ) {
     super(workspaceIteratorService);
   }
@@ -366,7 +394,195 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     if (missingFieldInputs.length === 0) {
       this.logger.log(
         doNotTranslate(
-          `CRM Lead object and all ${createFieldInputs.length} custom fields are already present in workspace ${workspaceId}; skipping`,
+          `CRM Lead object and all ${createFieldInputs.length} custom fields are already present in workspace ${workspaceId}; skipping field creation`,
+        ),
+      );
+    } else {
+      if (options.dryRun) {
+        this.logger.log(
+          doNotTranslate(
+            `[DRY RUN] Would create ${missingFieldInputs.length} CRM Lead field(s) in workspace ${workspaceId}: ${missingFieldInputs.map((field) => field.name).join(', ')}`,
+          ),
+        );
+
+        return;
+      }
+
+      await this.fieldMetadataService.createManyFields({
+        createFieldInputs: missingFieldInputs,
+        workspaceId,
+        shouldDeferActions: false,
+      });
+
+      this.logger.log(
+        doNotTranslate(
+          `Created ${missingFieldInputs.length} CRM Lead field(s) in workspace ${workspaceId}: ${missingFieldInputs.map((field) => field.name).join(', ')}`,
+        ),
+      );
+    }
+
+    await this.ensureLeadViews({
+      workspaceId,
+      leadObjectMetadataId: leadObjectMetadata.id,
+      options,
+    });
+  }
+
+  private async ensureLeadViews({
+    workspaceId,
+    leadObjectMetadataId,
+    options,
+  }: {
+    workspaceId: string;
+    leadObjectMetadataId: string;
+    options: ProvisionedWorkspaceCommandOptions;
+  }): Promise<void> {
+    const {
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps,
+      flatViewMaps,
+      flatViewFieldGroupMaps,
+    } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
+      'flatObjectMetadataMaps',
+      'flatFieldMetadataMaps',
+      'flatViewMaps',
+      'flatViewFieldGroupMaps',
+    ]);
+
+    const workspaceCustomFlatApplication =
+      (
+        await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow({
+          workspaceId,
+        })
+      ).workspaceCustomFlatApplication;
+
+    const getLeadField = (universalIdentifier: string) => {
+      const field = flatFieldMetadataMaps.byUniversalIdentifier[
+        universalIdentifier
+      ];
+
+      if (!isDefined(field) || field.objectMetadataId !== leadObjectMetadataId) {
+        throw new Error(
+          `Required CRM Lead field ${universalIdentifier} is missing in workspace ${workspaceId}.`,
+        );
+      }
+
+      return field;
+    };
+
+    const nameField = Object.values(
+      flatFieldMetadataMaps.byUniversalIdentifier,
+    )
+      .filter(isDefined)
+      .find(
+        (field) =>
+          field.objectMetadataId === leadObjectMetadataId &&
+          field.name === 'name',
+      );
+
+    if (!isDefined(nameField)) {
+      throw new Error(
+        `Required built-in Lead Name field is missing in workspace ${workspaceId}.`,
+      );
+    }
+
+    const companyField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.company,
+    );
+    const emailsField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.emails,
+    );
+    const phonesField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.phones,
+    );
+    const sourceField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.source,
+    );
+    const stageField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.stage,
+    );
+    const assignedToField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.assignedTo,
+    );
+    const nextFollowUpAtField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.nextFollowUpAt,
+    );
+    const notesField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.notes,
+    );
+
+    const viewDefinitions = [
+      {
+        identifier: CRM_LEAD_VIEW_IDENTIFIERS.pipeline,
+        name: 'Lead Pipeline',
+        type: ViewType.KANBAN,
+        icon: 'IconLayoutKanban',
+        position: 1,
+        mainGroupByFieldMetadataId: stageField.id,
+        fields: [
+          nameField.id,
+          companyField.id,
+          emailsField.id,
+          phonesField.id,
+          assignedToField.id,
+          nextFollowUpAtField.id,
+        ],
+        fieldUniversalIdentifiers:
+          CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.pipeline,
+      },
+      {
+        identifier: CRM_LEAD_VIEW_IDENTIFIERS.followUpCalendar,
+        name: 'Lead Follow-ups',
+        type: ViewType.CALENDAR,
+        icon: 'IconCalendarClock',
+        position: 2,
+        calendarLayout: ViewCalendarLayout.WEEK,
+        calendarFieldMetadataId: nextFollowUpAtField.id,
+        fields: [
+          nameField.id,
+          companyField.id,
+          assignedToField.id,
+          stageField.id,
+        ],
+        fieldUniversalIdentifiers:
+          CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.followUpCalendar,
+      },
+    ] as const;
+
+    const viewsToCreate = viewDefinitions.filter((definition) => {
+      const existingView =
+        flatViewMaps.byUniversalIdentifier[
+          definition.identifier.universalIdentifier
+        ];
+
+      if (isDefined(existingView)) {
+        return false;
+      }
+
+      const conflictingView = Object.values(
+        flatViewMaps.byUniversalIdentifier,
+      )
+        .filter(isDefined)
+        .find(
+          (view) =>
+            view.objectMetadataId === leadObjectMetadataId &&
+            view.name === definition.name &&
+            view.type === definition.type,
+        );
+
+      if (isDefined(conflictingView)) {
+        throw new Error(
+          `Cannot create CRM view "${definition.name}" in workspace ${workspaceId}: a view with the same name and type already exists under a different identifier.`,
+        );
+      }
+
+      return true;
+    });
+
+    if (viewsToCreate.length === 0) {
+      this.logger.log(
+        doNotTranslate(
+          `CRM Lead pipeline and follow-up calendar already exist in workspace ${workspaceId}; skipping view creation`,
         ),
       );
 
@@ -376,22 +592,114 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     if (options.dryRun) {
       this.logger.log(
         doNotTranslate(
-          `[DRY RUN] Would create ${missingFieldInputs.length} CRM Lead field(s) in workspace ${workspaceId}: ${missingFieldInputs.map((field) => field.name).join(', ')}`,
+          `[DRY RUN] Would create CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ')}`,
         ),
       );
 
       return;
     }
 
-    await this.fieldMetadataService.createManyFields({
-      createFieldInputs: missingFieldInputs,
-      workspaceId,
-      shouldDeferActions: false,
-    });
+    const flatViewsToCreate = [];
+    const flatViewGroupsToCreate = [];
+    const flatViewFieldsToCreate = [];
+    let flatViewMapsForCreation = flatViewMaps;
+
+    for (const definition of viewsToCreate) {
+      const viewInput = {
+        id: definition.identifier.id,
+        universalIdentifier: definition.identifier.universalIdentifier,
+        name: definition.name,
+        objectMetadataId: leadObjectMetadataId,
+        type: definition.type,
+        icon: definition.icon,
+        position: definition.position,
+        visibility: ViewVisibility.WORKSPACE,
+        ...(definition.type === ViewType.KANBAN
+          ? {
+              mainGroupByFieldMetadataId:
+                definition.mainGroupByFieldMetadataId,
+            }
+          : {
+              calendarLayout: definition.calendarLayout,
+              calendarFieldMetadataId: definition.calendarFieldMetadataId,
+            }),
+      };
+
+      const { flatViewToCreate, flatViewGroupsToCreate: createdGroups } =
+        fromCreateViewInputToFlatViewToCreate({
+          createViewInput: viewInput,
+          flatApplication: workspaceCustomFlatApplication,
+          flatFieldMetadataMaps,
+          flatObjectMetadataMaps,
+        });
+
+      flatViewsToCreate.push(flatViewToCreate);
+      flatViewGroupsToCreate.push(...createdGroups);
+
+      flatViewMapsForCreation = {
+        ...flatViewMapsForCreation,
+        universalIdentifierById: {
+          ...flatViewMapsForCreation.universalIdentifierById,
+          [flatViewToCreate.id]: flatViewToCreate.universalIdentifier,
+        },
+      };
+
+      definition.fields.forEach((fieldMetadataId, index) => {
+        flatViewFieldsToCreate.push(
+          fromCreateViewFieldInputToFlatViewFieldToCreate({
+            createViewFieldInput: {
+              viewId: flatViewToCreate.id,
+              fieldMetadataId,
+              isVisible: true,
+              size: 180,
+              position: index,
+              universalIdentifier:
+                definition.fieldUniversalIdentifiers[index],
+            },
+            flatApplication: workspaceCustomFlatApplication,
+            flatFieldMetadataMaps,
+            flatViewMaps: flatViewMapsForCreation,
+            flatViewFieldGroupMaps,
+          }),
+        );
+      });
+    }
+
+    const validateAndBuildResult =
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration({
+        allFlatEntityOperationByMetadataName: {
+          view: {
+            flatEntityToCreate: flatViewsToCreate,
+            flatEntityToDelete: [],
+            flatEntityToUpdate: [],
+          },
+          viewGroup: {
+            flatEntityToCreate: flatViewGroupsToCreate,
+            flatEntityToDelete: [],
+            flatEntityToUpdate: [],
+          },
+          viewField: {
+            flatEntityToCreate: flatViewFieldsToCreate,
+            flatEntityToDelete: [],
+            flatEntityToUpdate: [],
+          },
+        },
+        workspaceId,
+        isSystemBuild: false,
+        applicationUniversalIdentifier:
+          workspaceCustomFlatApplication.universalIdentifier,
+      });
+
+    if (validateAndBuildResult.status === 'fail') {
+      throw new WorkspaceMigrationBuilderException(
+        validateAndBuildResult,
+        'Failed to create the CRM Lead pipeline and follow-up calendar views',
+      );
+    }
 
     this.logger.log(
       doNotTranslate(
-        `Created ${missingFieldInputs.length} CRM Lead field(s) in workspace ${workspaceId}: ${missingFieldInputs.map((field) => field.name).join(', ')}`,
+        `Created CRM Lead views in workspace ${workspaceId}: ${viewsToCreate.map((view) => view.name).join(', ')}`,
       ),
     );
   }
