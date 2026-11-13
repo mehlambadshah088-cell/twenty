@@ -49,3 +49,9 @@ jobs:
 
       - name: Typecheck server
         run: yarn nx run twenty-server:typecheck
+
+      - name: Lint frontend
+        run: yarn nx run twenty-front:lint
+
+      - name: Typecheck frontend
+        run: yarn nx run twenty-front:typecheck
