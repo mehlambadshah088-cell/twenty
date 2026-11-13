@@ -157,6 +157,7 @@ export const ScheduleLeadMeetingButton = ({
     success: boolean;
     message: string;
     conferenceLink?: string | null;
+    busyIntervals?: BusyInterval[];
   } | null>(null);
 
   const ownerOptions = useMemo(
@@ -330,6 +331,7 @@ export const ScheduleLeadMeetingButton = ({
       const result = response.data?.bookCrmLeadMeeting;
 
       if (!result) {
+        setAvailabilityChecked(false);
         setBookingMessage({
           success: false,
           message: t`The meeting booking did not return a result.`,
@@ -338,16 +340,15 @@ export const ScheduleLeadMeetingButton = ({
         return;
       }
 
+      setAvailabilityChecked(false);
       setBookingMessage({
         success: result.success,
         message: result.message,
         conferenceLink: result.conferenceLink,
+        busyIntervals: result.busyIntervals,
       });
-
-      if (result.success) {
-        setAvailabilityChecked(false);
-      }
     } catch (error) {
+      setAvailabilityChecked(false);
       setBookingMessage({
         success: false,
         message:
@@ -628,6 +629,25 @@ export const ScheduleLeadMeetingButton = ({
                       }}
                     >
                       <Text size="sm">{bookingMessage.message}</Text>
+                      {bookingMessage.busyIntervals?.length ? (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                          }}
+                        >
+                          {bookingMessage.busyIntervals.map((interval) => (
+                            <Text
+                              key={interval.start + interval.end}
+                              size="sm"
+                            >
+                              {formatBusyTime(interval.start, timeZone)} –{' '}
+                              {formatBusyTime(interval.end, timeZone)}
+                            </Text>
+                          ))}
+                        </div>
+                      ) : null}
                       {bookingMessage.conferenceLink && (
                         <a
                           href={bookingMessage.conferenceLink}
