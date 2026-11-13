@@ -544,9 +544,7 @@ export class CrmLeadCalendarService {
     }
 
     if (startsAtTimestamp <= Date.now()) {
-      throw new BadRequestException(
-        'Meeting start must be in the future.',
-      );
+      throw new BadRequestException('Meeting start must be in the future.');
     }
 
     if (endsAtTimestamp - startsAtTimestamp > MAX_CALENDAR_QUERY_WINDOW_MS) {
