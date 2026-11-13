@@ -1,5 +1,6 @@
 import { useLazyQuery, useMutation } from '@apollo/client/react';
 import { useMemo, useState } from 'react';
+import { Trans, useLingui } from '@lingui/react/macro';
 import gql from 'graphql-tag';
 
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
@@ -77,7 +78,7 @@ const toIsoDateTime = (value: string): string => {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    throw new Error('Enter a valid meeting date and time.');
+    throw new Error(t`Enter a valid meeting date and time.`);
   }
 
   return date.toISOString();
@@ -103,6 +104,7 @@ export const ScheduleLeadMeetingButton = ({
 }: {
   leadRecordId: string;
 }) => {
+  const { t } = useLingui();
   const apolloCoreClient = useApolloCoreClient();
   const currentWorkspaceMember = useAtomStateValue(
     currentWorkspaceMemberState,
@@ -200,7 +202,7 @@ export const ScheduleLeadMeetingButton = ({
     if (!ownerWorkspaceMemberId || !startsAtLocal || !endsAtLocal) {
       setBookingMessage({
         success: false,
-        message: 'Choose a meeting owner, start time, and end time first.',
+        message: t`Choose a meeting owner, start time, and end time first.`,
       });
 
       return;
@@ -229,7 +231,7 @@ export const ScheduleLeadMeetingButton = ({
         message:
           error instanceof Error
             ? error.message
-            : 'Could not check the owner calendar.',
+            : t`Could not check the owner calendar.`,
       });
     }
   };
@@ -263,7 +265,7 @@ export const ScheduleLeadMeetingButton = ({
       if (!result) {
         setBookingMessage({
           success: false,
-          message: 'The meeting booking did not return a result.',
+          message: t`The meeting booking did not return a result.`,
         });
 
         return;
@@ -284,7 +286,7 @@ export const ScheduleLeadMeetingButton = ({
         message:
           error instanceof Error
             ? error.message
-            : 'Could not book the meeting.',
+            : t`Could not book the meeting.`,
       });
     }
   };
@@ -305,7 +307,7 @@ export const ScheduleLeadMeetingButton = ({
             size="sm"
             startIcon={<IconCalendarClock />}
           >
-            Schedule meeting
+            <Trans>Schedule meeting</Trans>
           </Button>
         }
       />
@@ -316,9 +318,11 @@ export const ScheduleLeadMeetingButton = ({
             <Dialog.Header>
               <Dialog.Title>Schedule a lead meeting</Dialog.Title>
               <Dialog.Description>
-                Check the owner’s Google Calendar before booking. Invitations
-                are sent to the selected employee and lead when an email is
-                available.
+                <Trans>
+                  Check the owner’s Google Calendar before booking. Invitations
+                  are sent to the selected employee and lead when an email is
+                  available.
+                </Trans>
               </Dialog.Description>
             </Dialog.Header>
             <Dialog.Body>
@@ -331,7 +335,7 @@ export const ScheduleLeadMeetingButton = ({
                   }}
                 >
                   <Field.Root name="ownerWorkspaceMemberId">
-                    <Field.Label>Meeting owner</Field.Label>
+                    <Field.Label><Trans>Meeting owner</Trans></Field.Label>
                     <Select.Root
                       value={ownerWorkspaceMemberId || null}
                       onValueChange={(value) => {
@@ -344,8 +348,8 @@ export const ScheduleLeadMeetingButton = ({
                         <Select.Value
                           placeholder={
                             loadingMembers
-                              ? 'Loading team members…'
-                              : 'Select owner'
+                              ? t`Loading team members…`
+                              : t`Select owner`
                           }
                         />
                         <Select.Icon />
@@ -370,7 +374,7 @@ export const ScheduleLeadMeetingButton = ({
                     </Select.Root>
                   </Field.Root>
                   <Field.Root name="employeeWorkspaceMemberId">
-                    <Field.Label>Assigned employee</Field.Label>
+                    <Field.Label><Trans>Assigned employee</Trans></Field.Label>
                     <Select.Root
                       value={employeeWorkspaceMemberId || null}
                       onValueChange={(value) => {
@@ -412,7 +416,7 @@ export const ScheduleLeadMeetingButton = ({
                   }}
                 >
                   <Field.Root name="startsAt">
-                    <Field.Label>Start</Field.Label>
+                    <Field.Label><Trans>Start</Trans></Field.Label>
                     <Input
                       type="datetime-local"
                       value={startsAtLocal}
@@ -423,7 +427,7 @@ export const ScheduleLeadMeetingButton = ({
                     />
                   </Field.Root>
                   <Field.Root name="endsAt">
-                    <Field.Label>End</Field.Label>
+                    <Field.Label><Trans>End</Trans></Field.Label>
                     <Input
                       type="datetime-local"
                       value={endsAtLocal}
@@ -436,17 +440,19 @@ export const ScheduleLeadMeetingButton = ({
                 </div>
 
                 <Field.Root name="description">
-                  <Field.Label>Meeting notes (optional)</Field.Label>
+                  <Field.Label><Trans>Meeting notes (optional)</Trans></Field.Label>
                   <Input
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Agenda or context for the meeting"
+                    placeholder={t`Agenda or context for the meeting`}
                   />
                 </Field.Root>
 
                 <Text size="sm">
-                  Times are checked in {timeZone}. Google Meet conferencing is
-                  requested automatically.
+                  <Trans>
+                    Times are checked in {timeZone}. Google Meet conferencing
+                    is requested automatically.
+                  </Trans>
                 </Text>
 
                 <div
@@ -467,22 +473,22 @@ export const ScheduleLeadMeetingButton = ({
                       gap: 8,
                     }}
                   >
-                    <Text weight="medium">Calendar availability</Text>
+                    <Text weight="medium"><Trans>Calendar availability</Trans></Text>
                     {availabilityStatus === 'available' && (
-                      <Badge color="green">Available</Badge>
+                      <Badge color="green"><Trans>Available</Trans></Badge>
                     )}
                     {availabilityStatus === 'busy' && (
-                      <Badge color="red">Busy</Badge>
+                      <Badge color="red"><Trans>Busy</Trans></Badge>
                     )}
                     {availabilityStatus === 'unchecked' && (
-                      <Badge color="gray">Not checked</Badge>
+                      <Badge color="gray"><Trans>Not checked</Trans></Badge>
                     )}
                   </div>
 
                   {availability?.busyIntervals.length ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <Text size="sm">
-                        Busy intervals in this window
+                        <Trans>Busy intervals in this window</Trans>
                       </Text>
                       {availability.busyIntervals.map((interval) => (
                         <Text
@@ -496,7 +502,7 @@ export const ScheduleLeadMeetingButton = ({
                     </div>
                   ) : availabilityStatus === 'available' ? (
                     <Text size="sm">
-                      No conflicts found for this time.
+                      <Trans>No conflicts found for this time.</Trans>
                     </Text>
                   ) : null}
 
@@ -522,7 +528,7 @@ export const ScheduleLeadMeetingButton = ({
                           target="_blank"
                           rel="noreferrer"
                         >
-                          <Text size="sm">Open Google Meet</Text>
+                          <Text size="sm"><Trans>Open Google Meet</Trans></Text>
                         </a>
                       )}
                     </div>
@@ -531,7 +537,7 @@ export const ScheduleLeadMeetingButton = ({
               </div>
             </Dialog.Body>
             <Dialog.Footer>
-              <Dialog.Close render={<Button variant="outline">Close</Button>} />
+              <Dialog.Close render={<Button variant="outline"><Trans>Close</Trans></Button>} />
               <Button
                 variant="outline"
                 loading={checkingAvailability}
@@ -543,7 +549,7 @@ export const ScheduleLeadMeetingButton = ({
                 }
                 onClick={handleCheckAvailability}
               >
-                Check availability
+                <Trans>Check availability</Trans>
               </Button>
               <Button
                 loading={booking}
@@ -556,7 +562,7 @@ export const ScheduleLeadMeetingButton = ({
                 startIcon={<IconVideo />}
                 onClick={handleBookMeeting}
               >
-                Book meeting
+                <Trans>Book meeting</Trans>
               </Button>
             </Dialog.Footer>
           </Dialog.Popup>
