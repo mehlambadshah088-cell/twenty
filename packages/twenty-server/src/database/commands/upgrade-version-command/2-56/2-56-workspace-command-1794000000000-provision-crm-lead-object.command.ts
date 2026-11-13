@@ -49,6 +49,7 @@ const CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = {
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e8',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e9',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ea',
+    'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ef',
   ],
   followUpCalendar: [
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094eb',
@@ -521,10 +522,6 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     const nextFollowUpAtField = getLeadField(
       CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.nextFollowUpAt,
     );
-    const notesField = getLeadField(
-      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.notes,
-    );
-
     const viewDefinitions = [
       {
         identifier: CRM_LEAD_VIEW_IDENTIFIERS.pipeline,
@@ -538,6 +535,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           companyField.id,
           emailsField.id,
           phonesField.id,
+          sourceField.id,
           assignedToField.id,
           nextFollowUpAtField.id,
         ],
