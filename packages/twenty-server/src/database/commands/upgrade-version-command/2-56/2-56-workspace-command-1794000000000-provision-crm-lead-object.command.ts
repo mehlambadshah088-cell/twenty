@@ -372,6 +372,28 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       },
     ];
 
+    const conflictingUniversalIdentifierField = createFieldInputs
+      .map((expectedField) => ({
+        expectedField,
+        existingField:
+          flatFieldMetadataMaps.byUniversalIdentifier[
+            expectedField.universalIdentifier ?? ''
+          ],
+      }))
+      .find(
+        ({ expectedField, existingField }) =>
+          isDefined(existingField) &&
+          (existingField.objectMetadataId !== leadObjectMetadata.id ||
+            existingField.name !== expectedField.name ||
+            existingField.type !== expectedField.type),
+      );
+
+    if (isDefined(conflictingUniversalIdentifierField)) {
+      throw new Error(
+        `Cannot provision CRM Lead field "${conflictingUniversalIdentifierField.expectedField.name}" in workspace ${workspaceId}: its universal identifier is already used by a different field.`,
+      );
+    }
+
     const expectedFieldUniversalIdentifiersByName = new Map(
       createFieldInputs.map((field) => [
         field.name,
