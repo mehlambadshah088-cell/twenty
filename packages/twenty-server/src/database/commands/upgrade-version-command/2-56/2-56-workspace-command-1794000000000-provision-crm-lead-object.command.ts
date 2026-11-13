@@ -701,7 +701,9 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
 
     const flatViewsToCreate = [];
     const flatViewGroupsToCreate = [];
-    const flatViewFieldsToCreate: ReturnType<\n      typeof fromCreateViewFieldInputToFlatViewFieldToCreate\n    >[] = [];
+    const flatViewFieldsToCreate: ReturnType<
+      typeof fromCreateViewFieldInputToFlatViewFieldToCreate
+    >[] = [];
     let flatViewMapsForCreation = flatViewMaps;
 
     for (const definition of viewsToCreate) {
@@ -904,7 +906,9 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       );
     }
 
-    const navigationItemsToCreate: ReturnType<\n      typeof fromCreateNavigationMenuItemInputToFlatNavigationMenuItemToCreate\n    >[] = [];
+    const navigationItemsToCreate: ReturnType<
+      typeof fromCreateNavigationMenuItemInputToFlatNavigationMenuItemToCreate
+    >[] = [];
     const createNavigationItem = (input: {
       id: string;
       type: NavigationMenuItemType;
