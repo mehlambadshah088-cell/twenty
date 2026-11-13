@@ -10,6 +10,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { google } from 'googleapis';
 import { ConnectedAccountProvider, type ObjectRecord } from 'twenty-shared/types';
 import { IsNull, type DataSource, type Repository } from 'typeorm';
+import { isDefined } from 'twenty-shared/utils';
 
 import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
