@@ -42,6 +42,10 @@ const CRM_LEAD_VIEW_IDENTIFIERS = {
     id: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
     universalIdentifier: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
   },
+  followUpDay: {
+    id: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
+    universalIdentifier: 'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e6',
+  },
 } as const;
 
 const CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = {
@@ -73,6 +77,13 @@ const CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = {
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ee',
     'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
   ],
+  followUpDay: [
+    'f6240a9b-1c7a-4ef5-8cb7-4e42d1c094e1',
+    'f6240a9b-1c7a-4ef5-8cb7-4e42d1c094e2',
+    'f6240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
+    'f6240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
+    'f6240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
+  ],
 } as const;
 
 const CRM_NAVIGATION_MENU_ITEM_IDS = {
@@ -80,6 +91,7 @@ const CRM_NAVIGATION_MENU_ITEM_IDS = {
   pipeline: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e2',
   allLeads: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
   followUps: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
+  dailyFollowUps: 'a6240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
 } as const;
 
 const CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS = {
@@ -685,6 +697,24 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
         fieldUniversalIdentifiers:
           CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.followUpCalendar,
       },
+      {
+        identifier: CRM_LEAD_VIEW_IDENTIFIERS.followUpDay,
+        name: 'Daily Follow-ups',
+        type: ViewType.CALENDAR,
+        icon: 'IconCalendarTime',
+        position: 1,
+        calendarLayout: ViewCalendarLayout.DAY,
+        calendarFieldMetadataId: nextFollowUpAtField.id,
+        fields: [
+          nameField.id,
+          companyField.id,
+          assignedToField.id,
+          stageField.id,
+          serviceInterestField.id,
+        ],
+        fieldUniversalIdentifiers:
+          CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.followUpDay,
+      },
     ] as const;
 
     const allLeadsIndexView = Object.values(
@@ -982,6 +1012,10 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       flatViewMaps.byUniversalIdentifier[
         CRM_LEAD_VIEW_IDENTIFIERS.followUpCalendar.universalIdentifier
       ];
+    const followUpDayView =
+      flatViewMaps.byUniversalIdentifier[
+        CRM_LEAD_VIEW_IDENTIFIERS.followUpDay.universalIdentifier
+      ];
     const allLeadsIndexView = Object.values(
       flatViewMaps.byUniversalIdentifier,
     )
@@ -996,6 +1030,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     if (
       !isDefined(pipelineView) ||
       !isDefined(followUpCalendarView) ||
+      !isDefined(followUpDayView) ||
       !isDefined(allLeadsIndexView)
     ) {
       throw new Error(
@@ -1150,6 +1185,15 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
       icon: 'IconCalendarClock',
       position: 2,
       viewId: followUpCalendarView.id,
+      folderId,
+    });
+    createNavigationItem({
+      id: CRM_NAVIGATION_MENU_ITEM_IDS.dailyFollowUps,
+      type: NavigationMenuItemType.VIEW,
+      name: 'Daily Follow-ups',
+      icon: 'IconCalendarTime',
+      position: 3,
+      viewId: followUpDayView.id,
       folderId,
     });
 

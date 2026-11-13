@@ -10,7 +10,6 @@ import { MicrosoftCalendarCreateEventService } from 'src/modules/calendar/calend
 import { CalendarEventComposerService } from 'src/modules/calendar/calendar-event-creation-manager/services/calendar-event-composer.service';
 import { CreateCalendarEventService } from 'src/modules/calendar/calendar-event-creation-manager/services/create-calendar-event.service';
 import { CrmLeadCalendarService } from 'src/modules/calendar/calendar-event-creation-manager/services/crm-lead-calendar.service';
-import { CrmLeadCalendarResolver } from 'src/modules/calendar/calendar-event-creation-manager/resolvers/crm-lead-calendar.resolver';
 import { CalDavDriverModule } from 'src/modules/calendar/calendar-event-import-manager/drivers/caldav/caldav-driver.module';
 import { CalendarEventImportManagerModule } from 'src/modules/calendar/calendar-event-import-manager/calendar-event-import-manager.module';
 import { OAuth2ClientManagerModule } from 'src/modules/connected-account/oauth2-client-manager/oauth2-client-manager.module';
@@ -24,7 +23,6 @@ import { OAuth2ClientManagerModule } from 'src/modules/connected-account/oauth2-
     CalDavDriverModule,
   ],
   providers: [
-    CrmLeadCalendarResolver,
     CalendarEventComposerService,
     CreateCalendarEventService,
     CrmLeadCalendarService,
