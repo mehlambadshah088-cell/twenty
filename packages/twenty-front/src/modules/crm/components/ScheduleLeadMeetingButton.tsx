@@ -2,6 +2,7 @@ import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react';
 import { useEffect, useMemo, useState } from 'react';
 import { Trans, useLingui } from '@lingui/react/macro';
 import gql from 'graphql-tag';
+import { doNotTranslate } from 'twenty-shared/i18n';
 
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
@@ -70,15 +71,21 @@ type BookingVariables = {
 };
 
 const CRM_LEAD_CALENDAR_OWNERS = gql(
-  'query CrmLeadCalendarOwners { crmLeadCalendarOwners { id name email timeZone } }',
+  doNotTranslate(
+    'query CrmLeadCalendarOwners { crmLeadCalendarOwners { id name email timeZone } }',
+  ),
 );
 
 const CRM_LEAD_CALENDAR_AVAILABILITY = gql(
-  'query CrmLeadCalendarAvailability($input: CrmLeadCalendarAvailabilityInput!) { crmLeadCalendarAvailability(input: $input) { available timeZone busyIntervals { start end } } }',
+  doNotTranslate(
+    'query CrmLeadCalendarAvailability($input: CrmLeadCalendarAvailabilityInput!) { crmLeadCalendarAvailability(input: $input) { available timeZone busyIntervals { start end } } }',
+  ),
 );
 
 const BOOK_CRM_LEAD_MEETING = gql(
-  'mutation BookCrmLeadMeeting($input: BookCrmLeadMeetingInput!) { bookCrmLeadMeeting(input: $input) { success message calendarEventId conferenceLink busyIntervals { start end } } }',
+  doNotTranslate(
+    'mutation BookCrmLeadMeeting($input: BookCrmLeadMeetingInput!) { bookCrmLeadMeeting(input: $input) { success message calendarEventId conferenceLink busyIntervals { start end } } }',
+  ),
 );
 
 const formatLocalDateTime = (date: Date): string => {
@@ -182,7 +189,7 @@ export const ScheduleLeadMeetingButton = ({
   const timeZone =
     selectedOwner?.timeZone ||
     Intl.DateTimeFormat().resolvedOptions().timeZone ||
-    'UTC';
+    doNotTranslate('UTC');
 
   const [
     checkAvailability,
