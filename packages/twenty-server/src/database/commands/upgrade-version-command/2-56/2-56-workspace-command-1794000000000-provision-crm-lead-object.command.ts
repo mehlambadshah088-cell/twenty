@@ -50,12 +50,14 @@ const CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = {
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094e9',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ea',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ef',
+    'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e2',
   ],
   followUpCalendar: [
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094eb',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ec',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ed',
     'd6240a9b-1c7a-4ef5-8cb7-4e42d1c094ee',
+    'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
   ],
 } as const;
 
@@ -64,6 +66,7 @@ const CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS = {
   emails: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e3',
   phones: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
   source: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
+  serviceInterest: 'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e1',
   stage: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e6',
   assignedTo: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e7',
   nextFollowUpAt: 'c6240a9b-1c7a-4ef5-8cb7-4e42d1c094e8',
@@ -283,6 +286,48 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
             label: 'Other',
             position: 5,
             color: 'gray',
+          },
+        ],
+      },
+      {
+        objectMetadataId: leadObjectMetadata.id,
+        universalIdentifier:
+          CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.serviceInterest,
+        type: FieldMetadataType.SELECT,
+        name: 'serviceInterest',
+        label: 'Service Interest',
+        description:
+          'The Corent service line this prospect is interested in.',
+        icon: 'IconLayers',
+        isNullable: true,
+        options: [
+          {
+            id: 'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e4',
+            value: 'FUNDING_COMPLIANCE',
+            label: 'Funding & Compliance',
+            position: 0,
+            color: 'blue',
+          },
+          {
+            id: 'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e5',
+            value: 'AI_TOOLS_WEBSITES',
+            label: 'AI Tools & Websites',
+            position: 1,
+            color: 'violet',
+          },
+          {
+            id: 'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e6',
+            value: 'AUTOMATION',
+            label: 'Automation',
+            position: 2,
+            color: 'turquoise',
+          },
+          {
+            id: 'c7240a9b-1c7a-4ef5-8cb7-4e42d1c094e7',
+            value: 'DIGITAL_MARKETING',
+            label: 'Digital Marketing',
+            position: 3,
+            color: 'orange',
           },
         ],
       },
@@ -538,6 +583,9 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
     const stageField = getLeadField(
       CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.stage,
     );
+    const serviceInterestField = getLeadField(
+      CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.serviceInterest,
+    );
     const assignedToField = getLeadField(
       CRM_LEAD_FIELD_UNIVERSAL_IDENTIFIERS.assignedTo,
     );
@@ -558,6 +606,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           emailsField.id,
           phonesField.id,
           sourceField.id,
+          serviceInterestField.id,
           assignedToField.id,
           nextFollowUpAtField.id,
         ],
@@ -577,6 +626,7 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
           companyField.id,
           assignedToField.id,
           stageField.id,
+          serviceInterestField.id,
         ],
         fieldUniversalIdentifiers:
           CRM_LEAD_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.followUpCalendar,
