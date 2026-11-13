@@ -4,6 +4,7 @@ import { ConnectedAccountMetadataModule } from 'src/engine/metadata-modules/conn
 import { PermissionsModule } from 'src/engine/permissions/permissions.module';
 import { CalendarEventCreationManagerModule } from 'src/modules/calendar/calendar-event-creation-manager/calendar-event-creation-manager.module';
 import { CreateCalendarEventResolver } from 'src/modules/calendar/calendar-event-creation-manager/resolvers/create-calendar-event.resolver';
+import { CrmLeadCalendarResolver } from 'src/modules/calendar/calendar-event-creation-manager/resolvers/crm-lead-calendar.resolver';
 
 @Module({
   imports: [
@@ -11,6 +12,6 @@ import { CreateCalendarEventResolver } from 'src/modules/calendar/calendar-event
     ConnectedAccountMetadataModule,
     PermissionsModule,
   ],
-  providers: [CreateCalendarEventResolver],
+  providers: [CreateCalendarEventResolver, CrmLeadCalendarResolver],
 })
 export class CreateCalendarEventModule {}
