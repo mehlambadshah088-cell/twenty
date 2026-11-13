@@ -1,5 +1,5 @@
 import { useLazyQuery, useMutation } from '@apollo/client/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Trans, useLingui } from '@lingui/react/macro';
 import gql from 'graphql-tag';
 
@@ -176,6 +176,26 @@ export const ScheduleLeadMeetingButton = ({
 
   const availability = availabilityData?.crmLeadCalendarAvailability;
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (!ownerWorkspaceMemberId && ownerOptions.length > 0) {
+      setOwnerWorkspaceMemberId(ownerOptions[0].value);
+    }
+
+    if (currentWorkspaceMember?.id && !employeeWorkspaceMemberId) {
+      setEmployeeWorkspaceMemberId(currentWorkspaceMember.id);
+    }
+  }, [
+    currentWorkspaceMember?.id,
+    employeeWorkspaceMemberId,
+    open,
+    ownerOptions,
+    ownerWorkspaceMemberId,
+  ]);
+
   const resetCheck = () => {
     setAvailabilityChecked(false);
     setBookingMessage(null);
@@ -316,7 +336,7 @@ export const ScheduleLeadMeetingButton = ({
         <Dialog.Viewport>
           <Dialog.Popup size="lg">
             <Dialog.Header>
-              <Dialog.Title>Schedule a lead meeting</Dialog.Title>
+              <Dialog.Title><Trans>Schedule a lead meeting</Trans></Dialog.Title>
               <Dialog.Description>
                 <Trans>
                   Check the owner’s Google Calendar before booking. Invitations
@@ -384,7 +404,7 @@ export const ScheduleLeadMeetingButton = ({
                       items={ownerOptions}
                     >
                       <Select.Trigger>
-                        <Select.Value placeholder="Select employee" />
+                        <Select.Value placeholder={t`Select employee`} />
                         <Select.Icon />
                       </Select.Trigger>
                       <Select.Portal>
@@ -450,8 +470,10 @@ export const ScheduleLeadMeetingButton = ({
 
                 <Text size="sm">
                   <Trans>
-                    Times are checked in {timeZone}. Google Meet conferencing
-                    is requested automatically.
+                    Date and time inputs use your browser timezone
+                    ({Intl.DateTimeFormat().resolvedOptions().timeZone}). Owner
+                    availability is displayed in {timeZone}. Google Meet
+                    conferencing is requested automatically.
                   </Trans>
                 </Text>
 
@@ -485,7 +507,7 @@ export const ScheduleLeadMeetingButton = ({
                     )}
                   </div>
 
-                  {availability?.busyIntervals.length ? (
+                  {availabilityChecked && availability?.busyIntervals.length ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <Text size="sm">
                         <Trans>Busy intervals in this window</Trans>
