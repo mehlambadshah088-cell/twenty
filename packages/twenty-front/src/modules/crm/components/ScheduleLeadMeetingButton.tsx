@@ -369,7 +369,7 @@ export const ScheduleLeadMeetingButton = ({
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger
         render={
-          <Button variant="outline" size="sm" startIcon={<IconCalendarClock />}>
+          <Button variant="outline" size="sm" startIcon={<IconCalendarTime />}>
             <Trans>Schedule meeting</Trans>
           </Button>
         }
