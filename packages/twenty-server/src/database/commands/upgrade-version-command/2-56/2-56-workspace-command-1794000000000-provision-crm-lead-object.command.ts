@@ -58,11 +58,13 @@ export class ProvisionCrmLeadObjectCommand extends ProvisionedWorkspaceCommandRu
 
     const conflictingObject = Object.values(
       flatObjectMetadataMaps.byUniversalIdentifier,
-    ).find(
-      (objectMetadata) =>
-        objectMetadata.nameSingular.toLowerCase() === 'lead' ||
-        objectMetadata.namePlural.toLowerCase() === 'leads',
-    );
+    )
+      .filter(isDefined)
+      .find(
+        (objectMetadata) =>
+          objectMetadata.nameSingular.toLowerCase() === 'lead' ||
+          objectMetadata.namePlural.toLowerCase() === 'leads',
+      );
 
     if (isDefined(conflictingObject)) {
       throw new Error(
