@@ -13,7 +13,7 @@ import { Badge } from 'twenty-ui/primitives/data-display';
 import { Button, Field, Input, Select } from 'twenty-ui/primitives/input';
 import { Dialog } from 'twenty-ui/primitives/surfaces';
 import { Text } from 'twenty-ui/primitives/typography';
-import { IconCalendarClock, IconVideo } from 'twenty-ui/icon';
+import { IconCalendarTime, IconVideo } from 'twenty-ui/icon';
 
 type BusyInterval = {
   start: string;
@@ -572,7 +572,7 @@ export const ScheduleLeadMeetingButton = ({
                       <Trans>Calendar availability</Trans>
                     </Text>
                     {availabilityStatus === 'available' && (
-                      <Badge color="green">
+                      <Badge color="primary">
                         <Trans>Available</Trans>
                       </Badge>
                     )}
@@ -582,7 +582,7 @@ export const ScheduleLeadMeetingButton = ({
                       </Badge>
                     )}
                     {availabilityStatus === 'unchecked' && (
-                      <Badge color="gray">
+                      <Badge color="secondary">
                         <Trans>Not checked</Trans>
                       </Badge>
                     )}
