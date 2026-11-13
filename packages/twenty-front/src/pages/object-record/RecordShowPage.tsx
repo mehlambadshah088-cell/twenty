@@ -3,6 +3,7 @@ import { AppPath, StandardObjectNameSingular } from 'twenty-shared/types';
 import { getAppPath, isDefined } from 'twenty-shared/utils';
 
 import { WorkspaceRouteUnavailable } from '@/ui/layout/page/components/WorkspaceRouteUnavailable';
+import { ScheduleLeadMeetingButton } from '@/modules/crm/components/ScheduleLeadMeetingButton';
 import { findCoreObjectShowPage } from '@/object-core/utils/findCoreObjectShowPage';
 import { isWorkspaceWorkflowVersionRouteHidden } from '@/object-core/workflows/utils/isWorkspaceWorkflowVersionRouteHidden';
 import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
@@ -66,5 +67,16 @@ export const RecordShowPage = () => {
     return <CoreObjectShowPage objectRecordId={parameters.objectRecordId} />;
   }
 
-  return <RecordShowPageContent parameters={parameters} />;
+  const leadMeetingAction =
+    parameters.objectNameSingular === 'lead' &&
+    isDefined(parameters.objectRecordId) ? (
+      <ScheduleLeadMeetingButton leadRecordId={parameters.objectRecordId} />
+    ) : undefined;
+
+  return (
+    <RecordShowPageContent
+      parameters={parameters}
+      headerActions={leadMeetingAction}
+    />
+  );
 };
