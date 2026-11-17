@@ -1,10 +1,10 @@
 {
-  "short_name": "Twenty",
-  "name": "Twenty",
+  "short_name": "Corent CRM",
+  "name": "The Corent CRM",
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "background_color": "#FFFFFF",
   "icons": [
     {
       "src": "images/icons/windows11/SmallTile.scale-100.png",

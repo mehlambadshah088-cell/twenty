@@ -13,6 +13,7 @@ import 'twenty-ui/style.css';
 import 'twenty-ui/theme-light.css';
 import 'twenty-ui/theme-dark.css';
 import './index.css';
+import './corent-brand.css';
 // Salesfarce: remove with the theme
 import { salesfarceLoadStyles } from '@/salesfarce/utils/salesfarceLoadStyles';
 

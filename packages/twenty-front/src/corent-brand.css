@@ -1,0 +1,129 @@
+/**
+ * The Corent CRM — Brand Theme & Styling Overrides
+ * Harmonized Green (Primary Emerald) & Orange (Warm Amber/Coral) Palette
+ * Preserves 100% of Twenty CRM layout, tables, lists, sidebars, and workflows.
+ */
+
+@layer twenty-ui {
+  /* ─────────────────────────────────────────────────────────────
+     LIGHT THEME: Clean Crisp Light with Emerald & Warm Orange
+     ───────────────────────────────────────────────────────────── */
+  .light {
+    /* Primary Interactive Accent: Emerald (#059669 / #10B981) */
+    --t-accent-primary: #10B981;
+    --t-accent-secondary: #059669;
+    --t-accent-tertiary: #D1FAE5;
+    --t-accent-quaternary: #ECFDF5;
+
+    /* Full 12-step Accent Scale */
+    --t-accent-accent1: #F0FDF4;  /* Ultra light green background tint */
+    --t-accent-accent2: #DCFCE7;  /* Soft green pill background */
+    --t-accent-accent3: #BBF7D0;  /* Tag / hover tint */
+    --t-accent-accent4: #86EFAC;  /* Subtle border / badge */
+    --t-accent-accent5: #4ADE80;  /* Secondary accent */
+    --t-accent-accent6: #22C55E;  /* Medium green */
+    --t-accent-accent7: #16A34A;  /* Hover state */
+    --t-accent-accent8: #15803D;  /* Dark interactive */
+    --t-accent-accent9: #059669;  /* Primary button background (accessible on white) */
+    --t-accent-accent10: #047857; /* Button hover state */
+    --t-accent-accent11: #065F46; /* Button pressed state */
+    --t-accent-accent12: #064E3B; /* High-contrast text on mint tags */
+
+    /* Secondary Action / Highlight: Warm Orange (#EA580C / #F97316) */
+    --t-buttons-secondary-text-color: #EA580C;
+
+    /* Backgrounds: Neutral clean surface */
+    --t-background-primary: #FFFFFF;
+    --t-background-secondary: #FAFAFA;
+    --t-background-tertiary: #F4F4F5;
+    --t-background-quaternary: #E4E4E7;
+
+    /* Transparent Tints for selections and chips */
+    --t-background-transparent-blue: rgba(16, 185, 129, 0.12); /* Green chip/selection */
+    --t-background-transparent-orange: rgba(249, 115, 22, 0.14); /* Orange tag tint */
+    --t-background-transparent-success: rgba(16, 185, 129, 0.16);
+
+    /* Focus and active outlines */
+    --t-border-color-blue: #10B981;
+
+    /* Corent Custom Brand Variables */
+    --corent-green-primary: #059669;
+    --corent-green-accent: #10B981;
+    --corent-green-tint: #ECFDF5;
+    --corent-orange-primary: #EA580C;
+    --corent-orange-accent: #F97316;
+    --corent-orange-tint: #FFF7ED;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     DARK THEME: Modern Deep Slate with Vibrant Mint & Warm Amber
+     ───────────────────────────────────────────────────────────── */
+  .dark {
+    /* Primary Interactive Accent: Bright Emerald (#34D399) */
+    --t-accent-primary: #34D399;
+    --t-accent-secondary: #10B981;
+    --t-accent-tertiary: #064E3B;
+    --t-accent-quaternary: #022C22;
+
+    /* Full 12-step Accent Scale */
+    --t-accent-accent1: #022C22;
+    --t-accent-accent2: #064E3B;
+    --t-accent-accent3: #065F46;
+    --t-accent-accent4: #047857;
+    --t-accent-accent5: #34D399;
+    --t-accent-accent6: #4ADE80;
+    --t-accent-accent7: #6EE7B7;
+    --t-accent-accent8: #A7F3D0;
+    --t-accent-accent9: #10B981;  /* Primary button background */
+    --t-accent-accent10: #34D399; /* Button hover state */
+    --t-accent-accent11: #6EE7B7;
+    --t-accent-accent12: #D1FAE5; /* High-contrast text on dark tags */
+
+    /* Secondary Action / Highlight: Warm Amber/Orange (#FB923C) */
+    --t-buttons-secondary-text-color: #FB923C;
+
+    /* Dark Surfaces: Deep Charcoal Slate */
+    --t-background-primary: #121824;
+    --t-background-secondary: #182234;
+    --t-background-tertiary: #1E293B;
+    --t-background-quaternary: #28354D;
+
+    /* Transparent Tints */
+    --t-background-transparent-blue: rgba(52, 211, 153, 0.16);
+    --t-background-transparent-orange: rgba(251, 146, 60, 0.18);
+    --t-background-transparent-success: rgba(52, 211, 153, 0.2);
+
+    /* Focus border */
+    --t-border-color-blue: #34D399;
+
+    /* Corent Custom Brand Variables */
+    --corent-green-primary: #10B981;
+    --corent-green-accent: #34D399;
+    --corent-green-tint: #064E3B;
+    --corent-orange-primary: #F97316;
+    --corent-orange-accent: #FB923C;
+    --corent-orange-tint: #431407;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   COMPONENT BRAND REFINEMENTS (Layout Preserved Exactly)
+   ───────────────────────────────────────────────────────────── */
+
+/* Focus rings on inputs/controls */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-color: var(--t-accent-primary) !important;
+}
+
+/* Selected row / item indicator subtle bar */
+[class*="StyledNavigationDrawerItem"][aria-selected="true"]::before,
+[class*="NavigationDrawerItem"][class*="active"]::before {
+  background-color: var(--corent-orange-accent, #F97316) !important;
+}
+
+/* Primary buttons hover refinement */
+button[class*="MainButton"]:hover {
+  filter: brightness(1.05);
+}
