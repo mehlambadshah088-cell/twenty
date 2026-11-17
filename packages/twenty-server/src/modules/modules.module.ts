@@ -23,9 +23,11 @@ import { MessagingModule } from 'src/modules/messaging/messaging.module';
 import { OnboardingInviteSuggestionsModule } from 'src/modules/onboarding-invite-suggestions/onboarding-invite-suggestions.module';
 import { WorkflowModule } from 'src/modules/workflow/workflow.module';
 import { WorkspaceMemberModule } from 'src/modules/workspace-member/workspace-member.module';
+import { CorentEmployeeDepartmentModule } from 'src/modules/corent-employee-department/corent-employee-department.module';
 
 @Module({
   imports: [
+    CorentEmployeeDepartmentModule,
     MessagingModule,
     CalendarModule,
     ConnectedAccountModule,
